@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quotex Trading Predictor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --danger-gradient: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --dark-surface: rgba(15, 23, 42, 0.95);
+            --glass-surface: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.12);
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            --shadow-xl: 0 35px 60px -12px rgba(0, 0, 0, 0.35);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a;
+            background-image: 
+                radial-gradient(circle at 25% 25%, #1e293b 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, #334155 0%, transparent 50%),
+                linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+        }
+
+        /* Floating particles background */
+        .container::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, rgba(59, 130, 246, 0.3), transparent),
+                radial-gradient(2px 2px at 40px 70px, rgba(16, 185, 129, 0.3), transparent),
+                radial-gradient(1px 1px at 90px 40px, rgba(239, 68, 68, 0.3), transparent);
+            background-repeat: repeat;
+            background-size: 100px 100px;
+            animation: float 20s linear infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px) translateX(0px); }
+            33% { transform: translateY(-10px) translateX(5px); }
+            66% { transform: translateY(5px) translateX(-5px); }
+            100% { transform: translateY(0px) translateX(0px); }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2.5rem;
+            background: var(--glass-surface);
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-xl);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(96, 165, 250, 0.3);
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .panel {
+            background: var(--glass-surface);
+            border-radius: 20px;
+            padding: 2rem;
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+            box-shadow: var(--shadow-xl);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .panel-title i {
+            font-size: 1.25rem;
+            color: var(--accent-blue);
+        }
+
+        .symbol-selector {
+            margin-bottom: 1.5rem;
+        }
+
+        .symbol-selector select {
+            width: 100%;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .symbol-selector select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .symbol-selector select option {
+            background: #1e293b;
+            color: var(--text-primary);
+            padding: 0.5rem;
+        }
+
+        .timeframe-buttons {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 0.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .timeframe-btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .timeframe-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .predict-btn {
+            width: 100%;
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent-green), #06b6d4);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .predict-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .predict-btn:hover::before {
+            left: 100%;
+        }
+
+        .predict-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+        }
+
+        .predict-btn:disabled {
+            background: rgba(100, 116, 139, 0.5);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .prediction-result {
+            text-align: center;
+            padding: 2rem;
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .prediction-result.up {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .prediction-result.down {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(245, 101, 101, 0.2));
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .prediction-result.neutral {
+            background: rgba(100, 116, 139, 0.1);
+        }
+
+        .prediction-direction {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .prediction-confidence {
+            font-size: 1.3rem;
+            font-weight: 500;
+            opacity: 0.9;
+        }
+
+        .current-price {
+            font-size: 1rem;
+            margin-top: 0.75rem;
+            opacity: 0.7;
+            font-weight: 400;
+        }
+
+        .accuracy-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(15, 23, 42, 0.6);
+            padding: 1.5rem;
+            border-radius: 16px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .recent-predictions {
+            margin-top: 2rem;
+        }
+
+        .predictions-table {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .predictions-table th,
+        .predictions-table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .predictions-table th {
+            background: rgba(59, 130, 246, 0.1);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .predictions-table td {
+            color: var(--text-secondary);
+        }
+
+        .direction-up {
+            color: var(--accent-green);
+            font-weight: 600;
+        }
+
+        .direction-down {
+            color: var(--accent-red);
+            font-weight: 600;
+        }
+
+        .status-correct {
+            color: var(--accent-green);
+            font-weight: 500;
+        }
+
+        .status-incorrect {
+            color: var(--accent-red);
+            font-weight: 500;
+        }
+
+        .status-pending {
+            color: #f59e0b;
+            font-weight: 500;
+        }
+
+        .resolve-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .resolve-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .resolve-btn:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            border-top-color: var(--accent-blue);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .message {
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+            border-left: 4px solid;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            color: #fca5a5;
+            border-color: var(--accent-red);
+        }
+
+        .success-message {
+            background: rgba(16, 185, 129, 0.1);
+            color: #6ee7b7;
+            border-color: var(--accent-green);
+        }
+
+        .threshold-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #fcd34d;
+            border-color: #f59e0b;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .main-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .accuracy-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .panel {
+                padding: 1.5rem;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header animate__animated animate__fadeInDown">
+            <h1><i class="fas fa-chart-line"></i> Quotex Trading Predictor</h1>
+            <p>AI-Powered Price Direction Predictions with High-Confidence Filtering</p>
+        </div>
+
+        <div class="main-grid">
+            <div class="panel animate__animated animate__fadeInLeft">
+                <h2 class="panel-title">
+                    <i class="fas fa-brain"></i>
+                    AI Price Prediction
+                </h2>
+
+                <div class="symbol-selector">
+                    <select id="symbolSelect">
+                        <option value="">Select Trading Pair</option>
+                        <optgroup label="🔥 Popular OTC Pairs">
+                            <option value="EURUSD_OTC">EUR/USD (OTC)</option>
+                            <option value="GBPUSD_OTC">GBP/USD (OTC)</option>
+                            <option value="USDJPY_OTC">USD/JPY (OTC)</option>
+                            <option value="AUDUSD_OTC">AUD/USD (OTC)</option>
+                        </optgroup>
+                        <optgroup label="💰 Quotex OTC Currencies">
+                            <option value="NZDJPY_OTC">NZD/JPY (OTC)</option>
+                            <option value="AUDCAD_OTC">AUD/CAD (OTC)</option>
+                            <option value="EURCAD_OTC">EUR/CAD (OTC)</option>
+                            <option value="USDBRL_OTC">USD/BRL (OTC)</option>
+                            <option value="NZDCAD_OTC">NZD/CAD (OTC)</option>
+                            <option value="USDPHP_OTC">USD/PHP (OTC)</option>
+                            <option value="USDCOP_OTC">USD/COP (OTC)</option>
+                            <option value="USDIDR_OTC">USD/IDR (OTC)</option>
+                            <option value="EURGBP_OTC">EUR/GBP (OTC)</option>
+                            <option value="GBPCHF_OTC">GBP/CHF (OTC)</option>
+                            <option value="GBPNZD_OTC">GBP/NZD (OTC)</option>
+                        </optgroup>
+                        <optgroup label="📈 Additional OTC Pairs">
+                            <option value="USDCAD_OTC">USD/CAD (OTC)</option>
+                            <option value="USDCHF_OTC">USD/CHF (OTC)</option>
+                            <option value="EURJPY_OTC">EUR/JPY (OTC)</option>
+                            <option value="GBPJPY_OTC">GBP/JPY (OTC)</option>
+                            <option value="AUDNZD_OTC">AUD/NZD (OTC)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="timeframe-buttons">
+                    <button class="timeframe-btn active" data-timeframe="1m">1 Minute</button>
+                    <button class="timeframe-btn" data-timeframe="5m">5 Minutes</button>
+                </div>
+
+                <button class="predict-btn" id="predictBtn">
+                    <i class="fas fa-robot"></i> Generate AI Prediction
+                </button>
+
+                <div id="predictionResult" class="prediction-result neutral">
+                    <div class="prediction-direction">
+                        <i class="fas fa-chart-candlestick"></i>
+                        Ready for Analysis
+                    </div>
+                    <div class="prediction-confidence">Select an OTC pair to generate AI predictions</div>
+                </div>
+
+                <div id="messageArea"></div>
+            </div>
+
+            <div class="panel animate__animated animate__fadeInRight">
+                <h2 class="panel-title">
+                    <i class="fas fa-chart-line"></i>
+                    Performance Analytics
+                </h2>
+
+                <div class="accuracy-stats" id="accuracyStats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalPredictions">0</div>
+                        <div class="stat-label">Total Predictions</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="correctPredictions">0</div>
+                        <div class="stat-label">Correct</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="accuracyRate">0%</div>
+                        <div class="stat-label">Accuracy Rate</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="currentPrice">$0.00</div>
+                        <div class="stat-label">Current Price</div>
+                    </div>
+                </div>
+
+                <div class="recent-predictions">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-clock"></i> Recent Predictions</h3>
+                        <button id="resolveBtn" class="resolve-btn" onclick="app.manualResolve()">
+                            <i class="fas fa-check-circle"></i> Resolve Pending
+                        </button>
+                    </div>
+                    <table class="predictions-table">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Direction</th>
+                                <th>Confidence</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentPredictionsTable">
+                            <tr>
+                                <td colspan="4" style="text-align: center; opacity: 0.6;">
+                                    No predictions yet
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class QuotexPredictor {
+            constructor() {
+                this.selectedSymbol = '';
+                this.selectedTimeframe = '1m';
+                this.isLoading = false;
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.loadAccuracyMetrics();
+                this.startAutoRefresh();
+            }
+
+            bindEvents() {
+                // Symbol selection
+                document.getElementById('symbolSelect').addEventListener('change', (e) => {
+                    this.selectedSymbol = e.target.value;
+                    this.updateCurrentPrice();
+                });
+
+                // Timeframe selection
+                document.querySelectorAll('.timeframe-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+                        e.target.classList.add('active');
+                        this.selectedTimeframe = e.target.dataset.timeframe;
+                    });
+                });
+
+                // Predict button
+                document.getElementById('predictBtn').addEventListener('click', () => {
+                    this.generatePrediction();
+                });
+            }
+
+            async generatePrediction() {
+                if (!this.selectedSymbol) {
+                    this.showMessage('Please select a trading pair first', 'error');
+                    return;
+                }
+
+                if (this.isLoading) return;
+
+                this.isLoading = true;
+                const predictBtn = document.getElementById('predictBtn');
+                const originalText = predictBtn.innerHTML;
+                predictBtn.innerHTML = '<span class="loading"></span> AI Processing...';
+                predictBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/prediction/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            symbol: this.selectedSymbol,
+                            timeframe: this.selectedTimeframe
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        if (data.threshold_met && data.prediction) {
+                            this.displayPrediction(data.prediction);
+                            this.showMessage('High-confidence prediction generated!', 'success');
+                        } else {
+                            this.displayNoPrediction(data.message);
+                            this.showMessage(data.message, 'warning');
+                        }
+                        this.loadRecentPredictions();
+                        this.loadAccuracyMetrics();
+                    } else {
+                        throw new Error(data.error || 'Failed to generate prediction');
+                    }
+                } catch (error) {
+                    console.error('Prediction error:', error);
+                    this.showMessage(`Error: ${error.message}`, 'error');
+                } finally {
+                    this.isLoading = false;
+                    predictBtn.innerHTML = originalText;
+                    predictBtn.disabled = false;
+                }
+            }
+
+            displayPrediction(prediction) {
+                const resultDiv = document.getElementById('predictionResult');
+                const direction = prediction.direction;
+                const confidence = prediction.confidence;
+                const currentPrice = prediction.current_price;
+
+                resultDiv.className = `prediction-result ${direction.toLowerCase()} animate__animated animate__bounceIn`;
+                resultDiv.innerHTML = `
+                    <div class="prediction-direction">
+                        <i class="fas fa-arrow-trend-${direction === 'UP' ? 'up' : 'down'}"></i>
+                        ${direction}
+                    </div>
+                    <div class="prediction-confidence">${confidence.toFixed(1)}% AI Confidence</div>
+                    <div class="current-price">Live Price: $${currentPrice.toFixed(4)}</div>
+                `;
+            }
+
+            displayNoPrediction(message) {
+                const resultDiv = document.getElementById('predictionResult');
+                resultDiv.className = 'prediction-result neutral animate__animated animate__fadeIn';
+                resultDiv.innerHTML = `
+                    <div class="prediction-direction">
+                        <i class="fas fa-shield-halved"></i>
+                        Quality Filter Active
+                    </div>
+                    <div class="prediction-confidence">${message}</div>
+                `;
+            }
+
+            async updateCurrentPrice() {
+                if (!this.selectedSymbol) return;
+
+                try {
+                    const response = await fetch(`/api/current-price/?symbol=${this.selectedSymbol}`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        document.getElementById('currentPrice').textContent = `$${data.price.toFixed(4)}`;
+                    }
+                } catch (error) {
+                    console.error('Price update error:', error);
+                }
+            }
+
+            async loadAccuracyMetrics() {
+                try {
+                    const response = await fetch('/api/accuracy/');
+                    const data = await response.json();
+
+                    if (response.ok && data.length > 0) {
+                        const totalPreds = data.reduce((sum, metric) => sum + metric.total_predictions, 0);
+                        const correctPreds = data.reduce((sum, metric) => sum + metric.correct_predictions, 0);
+                        const avgAccuracy = totalPreds > 0 ? (correctPreds / totalPreds * 100) : 0;
+
+                        document.getElementById('totalPredictions').textContent = totalPreds;
+                        document.getElementById('correctPredictions').textContent = correctPreds;
+                        document.getElementById('accuracyRate').textContent = `${avgAccuracy.toFixed(1)}%`;
+                    }
+                } catch (error) {
+                    console.error('Accuracy metrics error:', error);
+                }
+            }
+
+            async loadRecentPredictions() {
+                try {
+                    const url = this.selectedSymbol ? 
+                        `/api/recent-predictions/?symbol=${this.selectedSymbol}&limit=5` : 
+                        '/api/recent-predictions/?limit=5';
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.updatePredictionsTable(data);
+                    }
+                } catch (error) {
+                    console.error('Recent predictions error:', error);
+                }
+            }
+
+            updatePredictionsTable(predictions) {
+                const tbody = document.getElementById('recentPredictionsTable');
+                
+                if (predictions.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="text-align: center; opacity: 0.6;">
+                                No predictions yet
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                tbody.innerHTML = predictions.map(pred => {
+                    const time = new Date(pred.prediction_time).toLocaleTimeString();
+                    const directionClass = pred.direction === 'UP' ? 'direction-up' : 'direction-down';
+                    
+                    let statusClass = 'status-pending';
+                    let statusText = 'Pending';
+                    
+                    if (pred.is_resolved) {
+                        statusClass = pred.is_correct ? 'status-correct' : 'status-incorrect';
+                        statusText = pred.is_correct ? 'Correct' : 'Incorrect';
+                    }
+
+                    return `
+                        <tr>
+                            <td>${time}</td>
+                            <td class="${directionClass}">
+                                <i class="fas fa-arrow-${pred.direction === 'UP' ? 'up' : 'down'}"></i>
+                                ${pred.direction}
+                            </td>
+                            <td>${pred.confidence.toFixed(1)}%</td>
+                            <td class="${statusClass}">${statusText}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            showMessage(message, type) {
+                const messageArea = document.getElementById('messageArea');
+                const messageClass = type === 'error' ? 'message error-message' : 
+                                   type === 'success' ? 'message success-message' : 'message threshold-warning';
+                
+                messageArea.innerHTML = `<div class="${messageClass} animate__animated animate__fadeIn">${message}</div>`;
+                
+                setTimeout(() => {
+                    const messageEl = messageArea.querySelector('.message');
+                    if (messageEl) {
+                        messageEl.classList.add('animate__fadeOut');
+                        setTimeout(() => {
+                            messageArea.innerHTML = '';
+                        }, 300);
+                    }
+                }, 5000);
+            }
+
+            startAutoRefresh() {
+                // Refresh current price every 30 seconds
+                setInterval(() => {
+                    this.updateCurrentPrice();
+                }, 30000);
+
+                // Refresh recent predictions every 60 seconds
+                setInterval(() => {
+                    this.loadRecentPredictions();
+                    this.loadAccuracyMetrics();
+                }, 60000);
+
+                // Auto-resolve predictions every 2 minutes
+                setInterval(() => {
+                    this.autoResolvePredictions();
+                }, 120000);
+
+                // Initial resolve check after 10 seconds
+                setTimeout(() => {
+                    this.autoResolvePredictions();
+                }, 10000);
+            }
+
+            async autoResolvePredictions() {
+                try {
+                    const response = await fetch('/api/resolve-predictions/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.resolved_count > 0) {
+                            console.log(`Auto-resolved ${data.resolved_count} predictions`);
+                            // Refresh the predictions table to show updated statuses
+                            this.loadRecentPredictions();
+                            this.loadAccuracyMetrics();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Auto-resolve error:', error);
+                }
+            }
+
+            async manualResolve() {
+                const resolveBtn = document.getElementById('resolveBtn');
+                const originalText = resolveBtn.innerHTML;
+                
+                resolveBtn.innerHTML = '<span class="loading"></span> Resolving...';
+                resolveBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/resolve-predictions/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.showMessage(`Resolved ${data.resolved_count} predictions!`, 'success');
+                        
+                        // Refresh the data
+                        this.loadRecentPredictions();
+                        this.loadAccuracyMetrics();
+                    } else {
+                        throw new Error('Failed to resolve predictions');
+                    }
+                } catch (error) {
+                    console.error('Manual resolve error:', error);
+                    this.showMessage('Error resolving predictions', 'error');
+                } finally {
+                    resolveBtn.innerHTML = originalText;
+                    resolveBtn.disabled = false;
+                }
+            }
+        }
+
+        // Initialize the application
+        let app;
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new QuotexPredictor();
+        });
+    </script>
+</body>
+</html>

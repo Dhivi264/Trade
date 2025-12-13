@@ -1,0 +1,14 @@
+Django
+djangorestframework
+django-cors-headers
+requests
+pandas
+numpy
+ta
+websockets
+python-decouple
+celery
+redis
+beautifulsoup4
+selenium
+alpha-vantage
