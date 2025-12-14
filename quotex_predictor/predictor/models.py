@@ -38,8 +38,8 @@ class Prediction(models.Model):
     ]
     
     TIMEFRAME_CHOICES = [
-        ('1m', '1 Minute'),
-        ('5m', '5 Minutes'),
+        ('5m', '5 Minutes'),  # Primary prediction timeframe
+        ('1m', '1 Minute'),   # Legacy support
     ]
 
     trading_pair = models.ForeignKey(TradingPair, on_delete=models.CASCADE)

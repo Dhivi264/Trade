@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataSourceManager:
-    """Manages multiple data sources for price data"""
+    """Manages multiple data sources for price data with multi-timeframe support"""
     
     def __init__(self):
         self.alpha_vantage = AlphaVantageSource()
@@ -35,6 +35,22 @@ class DataSourceManager:
             logger.warning(f"Manual data failed for {symbol}: {e}")
         
         return None
+    
+    def get_multi_timeframe_data(self, symbol, timeframes=['1h', '4h'], limit=100):
+        """Get data for multiple timeframes for advanced analysis"""
+        data_dict = {}
+        
+        for tf in timeframes:
+            try:
+                data = self.get_price_data(symbol, tf, limit)
+                if data is not None and not data.empty:
+                    data_dict[tf] = data
+                else:
+                    logger.warning(f"No data available for {symbol} on {tf} timeframe")
+            except Exception as e:
+                logger.error(f"Error fetching {tf} data for {symbol}: {e}")
+        
+        return data_dict
 
 
 class AlphaVantageSource:
@@ -96,33 +112,15 @@ class ManualDataSource:
     def _generate_mock_data(self, symbol, limit):
         """Generate realistic mock data for demo"""
         try:
-            # Base price varies by symbol - OTC pairs from Quotex
+            # Base prices for the Top 5 OTC pairs with high profit potential
             base_prices = {
-                # Popular OTC pairs
-                'EURUSD_OTC': 1.0850,
-                'GBPUSD_OTC': 1.2650,
-                'USDJPY_OTC': 149.50,
-                'AUDUSD_OTC': 0.6750,
-                
-                # Quotex OTC Currency pairs (from image)
-                'NZDJPY_OTC': 89.45,
-                'AUDCAD_OTC': 0.9125,
-                'EURCAD_OTC': 1.4680,
-                'USDBRL_OTC': 5.1250,
-                'NZDCAD_OTC': 0.8340,
-                'USDPHP_OTC': 56.75,
-                'USDCOP_OTC': 4125.50,
-                'USDIDR_OTC': 15650.00,
-                'EURGBP_OTC': 0.8580,
-                'GBPCHF_OTC': 1.1125,
-                'GBPNZD_OTC': 2.0450,
-                
-                # Additional OTC pairs
-                'USDCAD_OTC': 1.3550,
-                'USDCHF_OTC': 0.8750,
-                'EURJPY_OTC': 162.25,
-                'GBPJPY_OTC': 189.75,
-                'AUDNZD_OTC': 1.0850,
+                # Top 5 OTC Pairs - Focused Trading
+                'GOLD_OTC': 2025.50,      # Gold - Premium commodity
+                'USDARS_OTC': 1015.25,    # USD/ARS - High volatility
+                'USDMXN_OTC': 20.1250,    # USD/MXN - Emerging market
+                'USDBRL_OTC': 6.0850,     # USD/BRL - Latin America
+                'CADCHF_OTC': 0.6450,     # CAD/CHF - Cross pair
+                'USDDZD_OTC': 134.75,     # USD/DZD - African currency
                 
                 # Fallback for any other symbols
                 'DEFAULT': 1.0000,

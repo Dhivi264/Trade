@@ -8,11 +8,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import TradingPair, PriceData, Prediction, AccuracyMetrics
 from .data_sources import DataSourceManager
-from .technical_analysis import TechnicalAnalyzer
+from .technical_analysis import AdvancedTechnicalAnalyzer, TechnicalAnalyzer
 from django.utils import timezone
 from decimal import Decimal
 import json
 import logging
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -52,49 +53,102 @@ def get_prediction(request):
             defaults={'name': symbol, 'is_active': True}
         )
         
-        # Fetch price data
+        # Fetch multi-timeframe price data for advanced analysis
         data_manager = DataSourceManager()
-        price_data = data_manager.get_price_data(symbol, '1h', 100)
         
-        if price_data is None or price_data.empty:
+        # Get both 1H and 4H data for professional analysis
+        multi_tf_data = data_manager.get_multi_timeframe_data(symbol, ['1h', '4h'], 100)
+        
+        if not multi_tf_data or '1h' not in multi_tf_data:
             return Response({'error': 'No price data available'}, 
                           status=status.HTTP_404_NOT_FOUND)
         
-        # Perform technical analysis
-        analyzer = TechnicalAnalyzer()
-        analysis = analyzer.analyze(price_data)
+        # Perform advanced technical analysis
+        analyzer = AdvancedTechnicalAnalyzer()
+        analysis = analyzer.analyze(
+            df_1h=multi_tf_data['1h'], 
+            df_4h=multi_tf_data.get('4h', None)
+        )
         
-        # Only return predictions that meet the 90% threshold
+        # Clean advanced analysis data for JSON serialization
+        def clean_for_json(obj):
+            """Recursively clean data for JSON serialization"""
+            import numpy as np
+            import math
+            
+            if isinstance(obj, dict):
+                return {k: clean_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean_for_json(item) for item in obj]
+            elif hasattr(obj, 'isoformat'):  # datetime/timestamp objects
+                return obj.isoformat()
+            elif hasattr(obj, 'tolist'):  # pandas Series/arrays
+                return clean_for_json(obj.tolist())
+            elif hasattr(obj, 'item') and hasattr(obj, 'size') and obj.size == 1:  # single numpy objects
+                return obj.item()
+            elif pd.isna(obj) or (isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj))):  # pandas NaN or inf
+                return None
+            elif isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                if np.isnan(obj) or np.isinf(obj):
+                    return None
+                return float(obj)
+            elif isinstance(obj, (int, float, str, bool)) or obj is None:
+                return obj
+            else:
+                return str(obj)  # Convert anything else to string
+        
+        # Check if prediction meets professional trading standards (70%+ confidence)
         if not analysis.get('meets_threshold', False):
             return Response({
                 'symbol': symbol,
-                'timeframe': timeframe,
+                'timeframe': '5m',  # Always 5-minute predictions now
                 'prediction': None,
-                'message': f'No high-confidence prediction available (confidence: {analysis.get("confidence", 0):.1f}%)',
+                'message': f'No high-confidence prediction available (confidence: {analysis.get("confidence", 0):.1f}%). Professional trading requires 70%+ confidence.',
                 'threshold_met': False,
                 'current_price': analysis.get('current_price', 0),
+                'analysis_timeframes': analysis.get('analysis_timeframes', ['1h', '4h']),
                 'timestamp': timezone.now().isoformat()
             })
         
-        # Save prediction to database
-        prediction = Prediction.objects.create(
-            trading_pair=trading_pair,
-            direction=analysis['direction'],
-            confidence=Decimal(str(analysis['confidence'])),
-            timeframe=timeframe,
-            current_price=Decimal(str(analysis['current_price'])),
-            technical_indicators=analysis['indicators']
-        )
+        # Clean advanced analysis data for database storage
+        cleaned_indicators = clean_for_json(analysis.get('advanced_analysis', {}))
+        
+        # Save prediction to database with error handling
+        try:
+            prediction = Prediction.objects.create(
+                trading_pair=trading_pair,
+                direction=analysis['direction'],
+                confidence=Decimal(str(analysis['confidence'])),
+                timeframe='5m',  # Always 5-minute predictions
+                current_price=Decimal(str(analysis['current_price'])),
+                technical_indicators=cleaned_indicators
+            )
+        except Exception as db_error:
+            logger.warning(f"Database save error for {symbol}, saving with minimal indicators: {db_error}")
+            # Fallback: save with minimal indicators
+            prediction = Prediction.objects.create(
+                trading_pair=trading_pair,
+                direction=analysis['direction'],
+                confidence=Decimal(str(analysis['confidence'])),
+                timeframe='5m',
+                current_price=Decimal(str(analysis['current_price'])),
+                technical_indicators={'error': 'Complex indicators could not be saved', 'direction': analysis['direction']}
+            )
         
         return Response({
             'symbol': symbol,
-            'timeframe': timeframe,
+            'timeframe': '5m',
             'prediction': {
                 'direction': analysis['direction'],
-                'confidence': analysis['confidence'],
-                'current_price': analysis['current_price'],
-                'indicators': analysis['indicators'],
-                'signal_breakdown': analysis['signal_breakdown']
+                'confidence': float(analysis['confidence']),
+                'current_price': float(analysis['current_price']),
+                'prediction_timeframe': analysis.get('prediction_timeframe', '5m'),
+                'analysis_timeframes': analysis.get('analysis_timeframes', ['1h', '4h']),
+                'signal_breakdown': clean_for_json(analysis['signal_breakdown']),
+                'advanced_analysis': clean_for_json(analysis.get('advanced_analysis', {})),
+                'confluence_factors': clean_for_json(analysis.get('confluence_factors', {}))
             },
             'threshold_met': True,
             'timestamp': timezone.now().isoformat(),
@@ -103,7 +157,9 @@ def get_prediction(request):
         
     except Exception as e:
         logger.error(f"Error generating prediction: {e}")
-        return Response({'error': 'Failed to generate prediction'}, 
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return Response({'error': f'Failed to generate prediction: {str(e)}'}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
