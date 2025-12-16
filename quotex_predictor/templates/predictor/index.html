@@ -545,8 +545,13 @@
 <body>
     <div class="container">
         <div class="header animate__animated animate__fadeInDown">
-            <h1><i class="fas fa-chart-line"></i> Quotex Top 5 OTC Predictor</h1>
-            <p>Professional 5-Minute Predictions for High-Profit OTC Pairs • 77-88% Success Rate</p>
+            <h1><i class="fas fa-chart-line"></i> QXBroker Advanced Predictor</h1>
+            <p>Real-Time Analysis from QXBroker Demo Platform • Advanced Technical Concepts • Precise Entry Signals</p>
+            <div style="margin-top: 1rem; padding: 0.75rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);">
+                <span style="color: #60a5fa; font-size: 0.9rem;">
+                    <i class="fas fa-link"></i> Connected to: <strong>qxbroker.com/en/demo-trade</strong>
+                </span>
+            </div>
         </div>
 
         <div class="main-grid">
@@ -570,13 +575,35 @@
                     </select>
                 </div>
 
+                <!-- Live Quote Display -->
+                <div id="liveQuoteDisplay" style="background: rgba(15, 23, 42, 0.8); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(255, 255, 255, 0.1); display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                        <div>
+                            <span style="color: var(--text-secondary); font-size: 0.9rem;">Live Quote</span>
+                            <span id="dataSourceBadge" style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;"></span>
+                            <button id="refreshQuoteBtn" onclick="app.forceRefreshQuote()" style="margin-left: 0.5rem; padding: 0.2rem 0.5rem; border: none; border-radius: 4px; background: #3b82f6; color: white; font-size: 0.7rem; cursor: pointer;">🔄 Refresh</button>
+                        </div>
+                        <span id="quoteTimestamp" style="color: var(--text-secondary); font-size: 0.8rem;"></span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <div id="quotePriceDisplay" style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary);">-</div>
+                            <div id="quoteChangeDisplay" style="font-size: 0.9rem; margin-top: 0.25rem;">-</div>
+                        </div>
+                        <div style="text-align: right; font-size: 0.85rem; color: var(--text-secondary);">
+                            <div>Bid: <span id="quoteBid">-</span></div>
+                            <div>Ask: <span id="quoteAsk">-</span></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="analysis-info" style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid rgba(16, 185, 129, 0.2);">
                     <h4 style="margin: 0 0 0.5rem 0; color: var(--accent-green); font-size: 0.9rem;">
-                        <i class="fas fa-star"></i> Top 5 OTC Pairs - Premium Selection
+                        <i class="fas fa-star"></i> QXBroker OTC Pairs - Real-Time Data
                     </h4>
                     <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
-                        <strong>Focus:</strong> Gold, USD/ARS, USD/MXN, USD/BRL, CAD/CHF, USD/DZD<br>
-                        <strong>Profit Range:</strong> 77-88% • <strong>Analysis:</strong> 1H/4H Market Structure
+                        <strong>Source:</strong> QXBroker Demo Platform • <strong>Analysis:</strong> Order Blocks, ICT, SMC, QMLR<br>
+                        <strong>Features:</strong> Precise Entry Timing • Real-Time Quotes • Advanced Concepts
                     </p>
                 </div>
 
@@ -647,6 +674,45 @@
                 </div>
             </div>
         </div>
+
+        <!-- Precise Entry Signal Panel -->
+        <div class="panel animate__animated animate__fadeInUp" style="margin-top: 2rem; grid-column: 1 / -1;">
+            <h2 class="panel-title">
+                <i class="fas fa-crosshairs"></i>
+                🎯 Precise Entry Signal System
+            </h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+                <div>
+                    <button class="predict-btn" id="preciseEntryBtn" style="background: linear-gradient(135deg, #f59e0b, #d97706); margin-bottom: 1rem;">
+                        <i class="fas fa-target"></i> Get Precise Entry Signal
+                    </button>
+                    
+                    <div style="background: rgba(245, 158, 11, 0.1); padding: 1rem; border-radius: 12px; border: 1px solid rgba(245, 158, 11, 0.2);">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #fbbf24; font-size: 0.9rem;">
+                            <i class="fas fa-info-circle"></i> Entry Signal Features
+                        </h4>
+                        <ul style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; padding-left: 1.2rem;">
+                            <li>🎯 Exact UP/DOWN direction</li>
+                            <li>⏰ Precise timing (1/5/10 minutes)</li>
+                            <li>📊 Real-time entry points</li>
+                            <li>🧠 Advanced concepts (OB, ICT, SMC)</li>
+                            <li>📈 Risk-optimized durations</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div id="preciseEntryResult" style="background: rgba(100, 116, 139, 0.1); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-secondary);">
+                        <i class="fas fa-crosshairs"></i>
+                        Ready for Precise Entry Analysis
+                    </div>
+                    <div style="color: var(--text-secondary); opacity: 0.8;">
+                        Select a trading pair and click "Get Precise Entry Signal" for exact timing
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -669,6 +735,7 @@
                 document.getElementById('symbolSelect').addEventListener('change', (e) => {
                     this.selectedSymbol = e.target.value;
                     this.updateCurrentPrice();
+                    this.updateLiveQuote();
                 });
 
                 // No timeframe selection needed - always 5-minute predictions
@@ -676,6 +743,11 @@
                 // Predict button
                 document.getElementById('predictBtn').addEventListener('click', () => {
                     this.generatePrediction();
+                });
+
+                // Precise Entry button
+                document.getElementById('preciseEntryBtn').addEventListener('click', () => {
+                    this.getPreciseEntrySignal();
                 });
             }
 
@@ -803,6 +875,89 @@
                 }
             }
 
+            async updateLiveQuote(forceRefresh = false) {
+                if (!this.selectedSymbol) {
+                    document.getElementById('liveQuoteDisplay').style.display = 'none';
+                    return;
+                }
+
+                try {
+                    const refreshParam = forceRefresh ? '&refresh=true' : '';
+                    const response = await fetch(`/api/qxbroker-quote/?symbol=${this.selectedSymbol}${refreshParam}`);
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.displayLiveQuote(data);
+                        
+                        if (forceRefresh) {
+                            this.showMessage('Quote refreshed with latest market data!', 'success');
+                        }
+                    } else {
+                        document.getElementById('liveQuoteDisplay').style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('Live quote error:', error);
+                    document.getElementById('liveQuoteDisplay').style.display = 'none';
+                }
+            }
+
+            async forceRefreshQuote() {
+                if (!this.selectedSymbol) return;
+                
+                const refreshBtn = document.getElementById('refreshQuoteBtn');
+                const originalText = refreshBtn.textContent;
+                
+                refreshBtn.textContent = '🔄 Refreshing...';
+                refreshBtn.disabled = true;
+                
+                try {
+                    await this.updateLiveQuote(true);
+                } finally {
+                    refreshBtn.textContent = originalText;
+                    refreshBtn.disabled = false;
+                }
+            }
+
+            displayLiveQuote(quote) {
+                const display = document.getElementById('liveQuoteDisplay');
+                display.style.display = 'block';
+
+                // Update price
+                document.getElementById('quotePriceDisplay').textContent = quote.current_price.toFixed(5);
+                
+                // Update change with color
+                const changeEl = document.getElementById('quoteChangeDisplay');
+                const changeText = `${quote.change >= 0 ? '+' : ''}${quote.change.toFixed(5)} (${quote.change_percent >= 0 ? '+' : ''}${quote.change_percent.toFixed(2)}%)`;
+                changeEl.textContent = changeText;
+                changeEl.style.color = quote.change >= 0 ? '#10b981' : '#ef4444';
+
+                // Update bid/ask
+                document.getElementById('quoteBid').textContent = quote.bid.toFixed(5);
+                document.getElementById('quoteAsk').textContent = quote.ask.toFixed(5);
+
+                // Update data source badge
+                const badge = document.getElementById('dataSourceBadge');
+                const dataSource = quote.data_source || 'UNKNOWN';
+                badge.textContent = dataSource;
+                
+                if (dataSource === 'REAL') {
+                    badge.style.backgroundColor = '#10b981';
+                    badge.style.color = 'white';
+                    badge.textContent = '🔴 LIVE MARKET';
+                } else {
+                    badge.style.backgroundColor = '#f59e0b';
+                    badge.style.color = 'white';
+                    badge.textContent = '🟡 SIMULATED';
+                }
+
+                // Update timestamp
+                const time = new Date(quote.timestamp).toLocaleTimeString();
+                document.getElementById('quoteTimestamp').textContent = `Updated: ${time}`;
+
+                // Update current price in stats
+                document.getElementById('currentPrice').textContent = quote.current_price.toFixed(5);
+            }
+
             async loadAccuracyMetrics() {
                 try {
                     const response = await fetch('/api/accuracy/');
@@ -898,10 +1053,11 @@
             }
 
             startAutoRefresh() {
-                // Refresh current price every 30 seconds
+                // Refresh current price and live quotes every 10 seconds
                 setInterval(() => {
                     this.updateCurrentPrice();
-                }, 30000);
+                    this.updateLiveQuote();
+                }, 10000);
 
                 // Refresh recent predictions every 60 seconds
                 setInterval(() => {
@@ -940,6 +1096,167 @@
                     }
                 } catch (error) {
                     console.error('Auto-resolve error:', error);
+                }
+            }
+
+            async getPreciseEntrySignal() {
+                if (!this.selectedSymbol) {
+                    this.showMessage('Please select a trading pair first', 'error');
+                    return;
+                }
+
+                if (this.isLoading) return;
+
+                this.isLoading = true;
+                const entryBtn = document.getElementById('preciseEntryBtn');
+                const originalText = entryBtn.innerHTML;
+                entryBtn.innerHTML = '<span class="loading"></span> Analyzing Entry Point...';
+                entryBtn.disabled = true;
+
+                try {
+                    const response = await fetch('/api/precise-entry/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            symbol: this.selectedSymbol
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.entry_signal) {
+                        this.displayPreciseEntrySignal(data.entry_signal);
+                        this.showMessage('Precise entry signal generated!', 'success');
+                    } else {
+                        throw new Error(data.error || 'Failed to get entry signal');
+                    }
+                } catch (error) {
+                    console.error('Precise entry error:', error);
+                    this.showMessage(`Error: ${error.message}`, 'error');
+                } finally {
+                    this.isLoading = false;
+                    entryBtn.innerHTML = originalText;
+                    entryBtn.disabled = false;
+                }
+            }
+
+            displayPreciseEntrySignal(signal) {
+                const resultDiv = document.getElementById('preciseEntryResult');
+                
+                // Determine colors and styles based on signal
+                let bgColor, borderColor, textColor, icon;
+                
+                if (signal.entry_signal === '🚀 ENTER NOW') {
+                    bgColor = 'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2))';
+                    borderColor = 'rgba(16, 185, 129, 0.4)';
+                    textColor = '#10b981';
+                    icon = 'fas fa-rocket';
+                } else if (signal.entry_signal === '⚡ PREPARE') {
+                    bgColor = 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.2))';
+                    borderColor = 'rgba(245, 158, 11, 0.4)';
+                    textColor = '#f59e0b';
+                    icon = 'fas fa-bolt';
+                } else if (signal.entry_signal === '⏰ GET READY') {
+                    bgColor = 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(147, 197, 253, 0.2))';
+                    borderColor = 'rgba(59, 130, 246, 0.4)';
+                    textColor = '#3b82f6';
+                    icon = 'fas fa-clock';
+                } else {
+                    bgColor = 'rgba(100, 116, 139, 0.1)';
+                    borderColor = 'rgba(255, 255, 255, 0.1)';
+                    textColor = '#64748b';
+                    icon = 'fas fa-hourglass-half';
+                }
+
+                resultDiv.style.background = bgColor;
+                resultDiv.style.borderColor = borderColor;
+                resultDiv.className = 'animate__animated animate__pulse';
+
+                const directionIcon = signal.direction === 'UP' ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+                const directionColor = signal.direction === 'UP' ? '#10b981' : '#ef4444';
+
+                resultDiv.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; text-align: left;">
+                        <div>
+                            <div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem; color: ${textColor};">
+                                <i class="${icon}"></i> ${signal.entry_signal}
+                            </div>
+                            
+                            ${signal.direction ? `
+                            <div style="font-size: 1.4rem; margin-bottom: 0.5rem; color: ${directionColor}; font-weight: 600;">
+                                <i class="fas ${directionIcon}"></i> ${signal.direction}
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.duration_minutes ? `
+                            <div style="font-size: 1.2rem; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                ⏰ Duration: <strong>${signal.duration_minutes} minutes</strong>
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.confidence ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                📊 Confidence: ${signal.confidence}%
+                            </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div>
+                            ${signal.entry_price ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                🎯 Entry: ${signal.entry_price}
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.current_price ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                💲 Current: ${signal.current_price}
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.risk_level ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                ⚠️ Risk: ${signal.risk_level}
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.timing ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                ⏱️ Timing: ${signal.timing}
+                            </div>
+                            ` : ''}
+                            
+                            ${signal.confluence_score ? `
+                            <div style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                                🔗 Confluence: ${signal.confluence_score}/4
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    
+                    ${signal.action ? `
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(0, 0, 0, 0.2); border-radius: 8px; text-align: center;">
+                        <div style="font-size: 1.1rem; font-weight: 600; color: ${textColor};">
+                            ${signal.action}
+                        </div>
+                        ${signal.analysis_summary ? `
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--text-secondary); opacity: 0.8;">
+                            ${signal.analysis_summary}
+                        </div>
+                        ` : ''}
+                    </div>
+                    ` : ''}
+                `;
+
+                // Auto-refresh entry signal every 30 seconds if not in ENTER NOW state
+                if (signal.entry_signal !== '🚀 ENTER NOW') {
+                    setTimeout(() => {
+                        if (this.selectedSymbol) {
+                            this.getPreciseEntrySignal();
+                        }
+                    }, 30000);
                 }
             }
 

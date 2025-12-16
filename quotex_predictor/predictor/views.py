@@ -342,3 +342,122 @@ def auto_resolve_predictions(request):
         logger.error(f"Error auto-resolving predictions: {e}")
         return Response({'error': 'Failed to auto-resolve predictions'}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+def get_precise_entry_signal(request):
+    """
+    🎯 GET PRECISE ENTRY SIGNAL
+    Returns exact entry timing with UP/DOWN direction and duration (1/5/10 minutes)
+    """
+    try:
+        symbol = request.data.get('symbol')
+        
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Fetch multi-timeframe data
+        data_manager = DataSourceManager()
+        multi_tf_data = data_manager.get_multi_timeframe_data(symbol, ['1h', '4h'], 100)
+        
+        if not multi_tf_data or '1h' not in multi_tf_data:
+            return Response({'error': 'No price data available'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+        
+        # Get precise entry signal
+        analyzer = AdvancedTechnicalAnalyzer()
+        entry_signal = analyzer.get_precise_entry_signal(
+            df_1h=multi_tf_data['1h'], 
+            df_4h=multi_tf_data.get('4h', None)
+        )
+        
+        # Clean data for JSON response
+        def clean_for_json(obj):
+            import numpy as np
+            import math
+            
+            if isinstance(obj, dict):
+                return {k: clean_for_json(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [clean_for_json(item) for item in obj]
+            elif pd.isna(obj) or (isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj))):
+                return None
+            elif isinstance(obj, np.integer):
+                return int(obj)
+            elif isinstance(obj, np.floating):
+                if np.isnan(obj) or np.isinf(obj):
+                    return None
+                return float(obj)
+            elif isinstance(obj, (int, float, str, bool)) or obj is None:
+                return obj
+            else:
+                return str(obj)
+        
+        cleaned_signal = clean_for_json(entry_signal)
+        
+        return Response({
+            'symbol': symbol,
+            'timestamp': timezone.now().isoformat(),
+            'entry_signal': cleaned_signal,
+            'status': 'success'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting precise entry signal: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        return Response({'error': f'Failed to get entry signal: {str(e)}'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_qxbroker_quote(request):
+    """
+    📊 GET QXBROKER LIVE QUOTE
+    Returns real-time price data similar to QXBroker demo platform
+    """
+    try:
+        symbol = request.GET.get('symbol')
+        force_refresh = request.GET.get('refresh', 'false').lower() == 'true'
+        
+        if not symbol:
+            return Response({'error': 'Symbol is required'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get live quote from QXBroker source
+        data_manager = DataSourceManager()
+        qx_source = data_manager.qxbroker
+        
+        # Force refresh cache if requested
+        if force_refresh and symbol in qx_source.price_cache:
+            del qx_source.price_cache[symbol]
+            del qx_source.last_update[symbol]
+            logger.info(f"Forced refresh for {symbol}")
+        
+        quote = qx_source.get_live_quote(symbol)
+        
+        if quote is None:
+            return Response({'error': 'No quote data available'}, 
+                          status=status.HTTP_404_NOT_FOUND)
+        
+        # Format response similar to QXBroker
+        return Response({
+            'symbol': quote['symbol'],
+            'current_price': round(quote['current_price'], 5),
+            'change': round(quote['change'], 5),
+            'change_percent': round(quote['change_percent'], 3),
+            'bid': round(quote['bid'], 5),
+            'ask': round(quote['ask'], 5),
+            'high_24h': round(quote['high_24h'], 5),
+            'low_24h': round(quote['low_24h'], 5),
+            'timestamp': quote['timestamp'].isoformat(),
+            'data_source': quote.get('data_source', 'UNKNOWN'),
+            'status': 'live',
+            'refresh_forced': force_refresh
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting QXBroker quote: {e}")
+        return Response({'error': f'Failed to get quote: {str(e)}'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
