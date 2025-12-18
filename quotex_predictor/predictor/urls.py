@@ -13,4 +13,10 @@ urlpatterns = [
     path('api/auto-resolve/', views.auto_resolve_predictions, name='auto_resolve_predictions'),
     path('api/precise-entry/', views.get_precise_entry_signal, name='precise_entry_signal'),
     path('api/qxbroker-quote/', views.get_qxbroker_quote, name='qxbroker_quote'),
+    
+    # Chart Analysis Endpoints (Visual + Real Price Data)
+    path('api/upload-chart-analysis/', views.upload_chart_analysis, name='upload_chart_analysis'),
+    path('api/chart-analyses/', views.get_chart_analyses, name='chart_analyses'),
+    path('api/chart-analysis-detail/<int:chart_id>/', views.get_chart_analysis_detail, name='chart_analysis_detail'),
+    path('api/delete-chart-analysis/<int:chart_id>/', views.delete_chart_analysis, name='delete_chart_analysis'),
 ]

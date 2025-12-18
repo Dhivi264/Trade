@@ -6,14 +6,18 @@ from django.views import View
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import TradingPair, PriceData, Prediction, AccuracyMetrics
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from .models import TradingPair, PriceData, Prediction, AccuracyMetrics, ChartUpload
 from .data_sources import DataSourceManager
 from .technical_analysis import AdvancedTechnicalAnalyzer, TechnicalAnalyzer
+from .chart_analyzer import ChartVisualAnalyzer
 from django.utils import timezone
 from decimal import Decimal
 import json
 import logging
 import pandas as pd
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -461,3 +465,310 @@ def get_qxbroker_quote(request):
         logger.error(f"Error getting QXBroker quote: {e}")
         return Response({'error': f'Failed to get quote: {str(e)}'}, 
                        status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+@api_view(['GET'])
+def get_chart_analyses(request):
+    """
+    📋 GET CHART ANALYSIS HISTORY
+    Retrieve list of uploaded charts and their combined analysis results
+    """
+    try:
+        limit = int(request.GET.get('limit', 10))
+        symbol = request.GET.get('symbol')
+        
+        uploads_query = ChartUpload.objects.all()
+        
+        if symbol:
+            uploads_query = uploads_query.filter(symbol__icontains=symbol)
+        
+        uploads = uploads_query[:limit]
+        
+        data = []
+        for upload in uploads:
+            real_prediction = upload.real_price_prediction
+            visual_analysis = upload.chart_analysis
+            
+            data.append({
+                'id': upload.id,
+                'symbol': upload.symbol,
+                'timeframe': upload.timeframe,
+                'uploaded_at': upload.uploaded_at.isoformat(),
+                'analysis_completed': upload.analysis_completed,
+                'chart_image_url': upload.chart_image.url if upload.chart_image else None,
+                'real_prediction': {
+                    'direction': real_prediction.get('direction', 'UNKNOWN'),
+                    'confidence': real_prediction.get('confidence', 0),
+                    'meets_threshold': real_prediction.get('meets_threshold', False),
+                    'current_price': real_prediction.get('current_price', 0),
+                    'data_source': 'REAL_API_DATA'
+                },
+                'visual_analysis': {
+                    'trend_direction': visual_analysis.get('trend_direction', 'UNKNOWN'),
+                    'pattern_type': visual_analysis.get('pattern_type', 'UNKNOWN'),
+                    'chart_quality': visual_analysis.get('chart_quality', 'UNKNOWN')
+                },
+                'recommendation': real_prediction.get('direction', 'WAIT') if real_prediction.get('meets_threshold', False) else 'WAIT'
+            })
+        
+        return Response(data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching chart analyses: {e}")
+        return Response({'error': 'Failed to fetch chart analyses'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_chart_analysis_detail(request, chart_id):
+    """
+    🔍 GET DETAILED CHART ANALYSIS
+    Get detailed analysis results for a specific uploaded chart
+    """
+    try:
+        chart_upload = ChartUpload.objects.get(id=chart_id)
+        
+        return Response({
+            'id': chart_upload.id,
+            'symbol': chart_upload.symbol,
+            'timeframe': chart_upload.timeframe,
+            'uploaded_at': chart_upload.uploaded_at.isoformat(),
+            'chart_image_url': chart_upload.chart_image.url if chart_upload.chart_image else None,
+            'analysis_completed': chart_upload.analysis_completed,
+            'visual_analysis': chart_upload.chart_analysis,
+            'real_price_prediction': chart_upload.real_price_prediction,
+            'market_structure': chart_upload.market_structure,
+            'note': 'Predictions are based on real price data from APIs, not chart image analysis'
+        })
+        
+    except ChartUpload.DoesNotExist:
+        return Response({'error': 'Chart analysis not found'}, 
+                       status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error fetching chart analysis detail: {e}")
+        return Response({'error': 'Failed to fetch chart analysis detail'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+def delete_chart_analysis(request, chart_id):
+    """
+    🗑️ DELETE UPLOADED CHART ANALYSIS
+    Delete an uploaded chart and its analysis
+    """
+    try:
+        chart_upload = ChartUpload.objects.get(id=chart_id)
+        chart_upload.delete()  # This will also delete the image file
+        
+        return Response({'success': True, 'message': 'Chart analysis deleted successfully'})
+        
+    except ChartUpload.DoesNotExist:
+        return Response({'error': 'Chart analysis not found'}, 
+                       status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error deleting chart analysis: {e}")
+        return Response({'error': 'Failed to delete chart analysis'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@csrf_exempt
+def upload_chart_analysis(request):
+    """
+    📊 UPLOAD CHART FOR VISUAL ANALYSIS + REAL PRICE PREDICTION
+    Combines visual chart analysis with real price data for accurate predictions
+    """
+    try:
+        if 'chart_image' not in request.FILES:
+            return Response({'error': 'No chart image provided'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        chart_file = request.FILES['chart_image']
+        symbol = request.data.get('symbol', 'UNKNOWN')
+        timeframe = request.data.get('timeframe', '1h')
+        
+        # Validate file type
+        allowed_extensions = ['.jpg', '.jpeg', '.png', '.bmp']
+        file_extension = os.path.splitext(chart_file.name)[1].lower()
+        
+        if file_extension not in allowed_extensions:
+            return Response({'error': 'Invalid file type. Please upload JPG, PNG, or BMP images.'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file size (max 10MB)
+        if chart_file.size > 10 * 1024 * 1024:
+            return Response({'error': 'File too large. Maximum size is 10MB.'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create ChartUpload instance
+        chart_upload = ChartUpload.objects.create(
+            chart_image=chart_file,
+            symbol=symbol.upper(),
+            timeframe=timeframe
+        )
+        
+        # Analyze chart with real price data
+        analyzer = ChartVisualAnalyzer()
+        analysis_result = analyzer.analyze_chart_with_real_data(
+            chart_upload.chart_image.path, 
+            symbol.upper(),
+            timeframe
+        )
+        
+        # Update chart upload with analysis results
+        chart_upload.chart_analysis = analysis_result.get('visual_analysis', {})
+        chart_upload.market_structure = analysis_result.get('visual_analysis', {})
+        chart_upload.real_price_prediction = analysis_result.get('real_price_prediction', {})
+        chart_upload.analysis_completed = True
+        chart_upload.save()
+        
+        # Create prediction record ONLY if real price analysis meets threshold
+        real_prediction = analysis_result.get('real_price_prediction', {})
+        recommendation = analysis_result.get('recommendation', {})
+        
+        prediction_created = False
+        if real_prediction.get('meets_threshold', False) and recommendation.get('final_direction') in ['UP', 'DOWN']:
+            # Get or create trading pair
+            trading_pair, created = TradingPair.objects.get_or_create(
+                symbol=symbol.upper(),
+                defaults={'name': symbol.upper(), 'is_active': True}
+            )
+            
+            # Create prediction based on REAL PRICE DATA only
+            prediction = Prediction.objects.create(
+                trading_pair=trading_pair,
+                direction=recommendation['final_direction'],
+                confidence=Decimal(str(real_prediction['confidence'])),
+                timeframe='5m',  # Always 5-minute predictions
+                current_price=Decimal(str(real_prediction.get('current_price', 1.0))),
+                technical_indicators={
+                    'source': 'chart_upload_with_real_data',
+                    'chart_id': chart_upload.id,
+                    'real_price_analysis': real_prediction,
+                    'visual_confirmation': recommendation.get('visual_confirmation', False)
+                }
+            )
+            prediction_created = True
+        
+        return Response({
+            'success': True,
+            'chart_id': chart_upload.id,
+            'symbol': chart_upload.symbol,
+            'timeframe': chart_upload.timeframe,
+            'analysis': analysis_result,
+            'uploaded_at': chart_upload.uploaded_at.isoformat(),
+            'prediction_created': prediction_created,
+            'message': 'Chart analyzed with real price data for accurate predictions'
+        })
+        
+    except Exception as e:
+        logger.error(f"Chart upload analysis error: {e}")
+        return Response({'error': f'Failed to analyze chart: {str(e)}'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_chart_analyses(request):
+    """
+    📋 GET CHART ANALYSIS HISTORY
+    Retrieve list of uploaded charts with their visual and real price analyses
+    """
+    try:
+        limit = int(request.GET.get('limit', 10))
+        symbol = request.GET.get('symbol')
+        
+        uploads_query = ChartUpload.objects.all()
+        
+        if symbol:
+            uploads_query = uploads_query.filter(symbol__icontains=symbol)
+        
+        uploads = uploads_query[:limit]
+        
+        data = []
+        for upload in uploads:
+            real_prediction = upload.real_price_prediction
+            visual_analysis = upload.chart_analysis
+            
+            data.append({
+                'id': upload.id,
+                'symbol': upload.symbol,
+                'timeframe': upload.timeframe,
+                'uploaded_at': upload.uploaded_at.isoformat(),
+                'analysis_completed': upload.analysis_completed,
+                'chart_image_url': upload.chart_image.url if upload.chart_image else None,
+                'real_price_prediction': {
+                    'direction': real_prediction.get('direction', 'UNKNOWN'),
+                    'confidence': real_prediction.get('confidence', 0),
+                    'meets_threshold': real_prediction.get('meets_threshold', False),
+                    'current_price': real_prediction.get('current_price', 0)
+                },
+                'visual_analysis': {
+                    'trend_direction': visual_analysis.get('trend_direction', 'UNKNOWN'),
+                    'pattern_type': visual_analysis.get('pattern_type', 'UNKNOWN'),
+                    'chart_quality': visual_analysis.get('chart_quality', 'UNKNOWN')
+                },
+                'data_source': 'REAL_API_DATA'
+            })
+        
+        return Response(data)
+        
+    except Exception as e:
+        logger.error(f"Error fetching chart analyses: {e}")
+        return Response({'error': 'Failed to fetch chart analyses'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def get_chart_analysis_detail(request, chart_id):
+    """
+    🔍 GET DETAILED CHART ANALYSIS
+    Get detailed analysis results for a specific uploaded chart
+    """
+    try:
+        chart_upload = ChartUpload.objects.get(id=chart_id)
+        
+        return Response({
+            'id': chart_upload.id,
+            'symbol': chart_upload.symbol,
+            'timeframe': chart_upload.timeframe,
+            'uploaded_at': chart_upload.uploaded_at.isoformat(),
+            'chart_image_url': chart_upload.chart_image.url if chart_upload.chart_image else None,
+            'analysis_completed': chart_upload.analysis_completed,
+            'visual_analysis': chart_upload.chart_analysis,
+            'market_structure': chart_upload.market_structure,
+            'real_price_prediction': chart_upload.real_price_prediction,
+            'note': 'Predictions are based on real price data, not visual analysis'
+        })
+        
+    except ChartUpload.DoesNotExist:
+        return Response({'error': 'Chart analysis not found'}, 
+                       status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error fetching chart analysis detail: {e}")
+        return Response({'error': 'Failed to fetch chart analysis detail'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+def delete_chart_analysis(request, chart_id):
+    """
+    🗑️ DELETE UPLOADED CHART ANALYSIS
+    Delete an uploaded chart and its analysis
+    """
+    try:
+        chart_upload = ChartUpload.objects.get(id=chart_id)
+        chart_upload.delete()  # This will also delete the image file
+        
+        return Response({'success': True, 'message': 'Chart analysis deleted successfully'})
+        
+    except ChartUpload.DoesNotExist:
+        return Response({'error': 'Chart analysis not found'}, 
+                       status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error deleting chart analysis: {e}")
+        return Response({'error': 'Failed to delete chart analysis'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

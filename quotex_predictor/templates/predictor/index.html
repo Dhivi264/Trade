@@ -675,6 +675,81 @@
             </div>
         </div>
 
+        <!-- Chart Analysis Panel -->
+        <div class="panel animate__animated animate__fadeInUp" style="margin-top: 2rem; grid-column: 1 / -1;">
+            <h2 class="panel-title">
+                <i class="fas fa-chart-candlestick"></i>
+                📊 Chart Analysis with Real Price Data
+            </h2>
+            
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem; align-items: start;">
+                <div>
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-weight: 500;">Trading Symbol:</label>
+                        <input type="text" id="chartSymbol" placeholder="e.g., EURUSD, GOLD, BTC" 
+                               style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: var(--text-primary); font-size: 0.9rem;">
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-weight: 500;">Timeframe:</label>
+                        <select id="chartTimeframe" style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: var(--text-primary); font-size: 0.9rem;">
+                            <option value="15m">15 Minutes</option>
+                            <option value="1h" selected>1 Hour</option>
+                        </select>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-primary); font-weight: 500;">Chart Image:</label>
+                        <input type="file" id="chartFile" accept="image/*" 
+                               style="width: 100%; padding: 0.75rem; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(15, 23, 42, 0.8); color: var(--text-primary); font-size: 0.9rem;">
+                    </div>
+                    
+                    <button class="predict-btn" id="uploadChartBtn" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); margin-bottom: 1rem;">
+                        <i class="fas fa-upload"></i> Analyze Chart + Real Data
+                    </button>
+                    
+                    <div style="background: rgba(139, 92, 246, 0.1); padding: 1rem; border-radius: 12px; border: 1px solid rgba(139, 92, 246, 0.2);">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #a78bfa; font-size: 0.9rem;">
+                            <i class="fas fa-info-circle"></i> Smart Analysis Features
+                        </h4>
+                        <ul style="margin: 0; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; padding-left: 1.2rem;">
+                            <li>📈 Visual chart pattern recognition</li>
+                            <li>🎯 Real price data analysis (Primary)</li>
+                            <li>📊 Advanced market structure (BOS, CHoCH)</li>
+                            <li>🔄 API-based predictions for accuracy</li>
+                            <li>⚡ Combined visual + real data insights</li>
+                            <li>🎪 Original price data guaranteed</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div id="chartAnalysisResult" style="background: rgba(100, 116, 139, 0.1); border-radius: 16px; padding: 2rem; text-align: center; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div style="font-size: 1.5rem; margin-bottom: 1rem; color: var(--text-secondary);">
+                        <i class="fas fa-chart-candlestick"></i>
+                        Ready for Smart Chart Analysis
+                    </div>
+                    <div style="color: var(--text-secondary); opacity: 0.8;">
+                        Upload your 15m or 1h chart to get visual analysis combined with real-time price data predictions
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Analysis History Panel -->
+        <div class="panel animate__animated animate__fadeInUp" style="margin-top: 2rem; grid-column: 1 / -1;">
+            <h2 class="panel-title">
+                <i class="fas fa-history"></i>
+                📋 Chart Analysis History
+            </h2>
+            
+            <div id="chartHistoryContainer">
+                <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                    <i class="fas fa-chart-line" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <div>No chart analyses yet</div>
+                </div>
+            </div>
+        </div>
+
         <!-- Precise Entry Signal Panel -->
         <div class="panel animate__animated animate__fadeInUp" style="margin-top: 2rem; grid-column: 1 / -1;">
             <h2 class="panel-title">
@@ -727,6 +802,7 @@
             init() {
                 this.bindEvents();
                 this.loadAccuracyMetrics();
+                this.loadChartAnalysisHistory();
                 this.startAutoRefresh();
             }
 
@@ -748,6 +824,11 @@
                 // Precise Entry button
                 document.getElementById('preciseEntryBtn').addEventListener('click', () => {
                     this.getPreciseEntrySignal();
+                });
+
+                // Chart Upload button
+                document.getElementById('uploadChartBtn').addEventListener('click', () => {
+                    this.uploadChartAnalysis();
                 });
             }
 
@@ -1076,6 +1157,254 @@
                 }, 10000);
             }
 
+            async uploadChartAnalysis() {
+                const chartFile = document.getElementById('chartFile').files[0];
+                const chartSymbol = document.getElementById('chartSymbol').value.trim();
+                const chartTimeframe = document.getElementById('chartTimeframe').value;
+
+                if (!chartFile) {
+                    this.showMessage('Please select a chart image to upload', 'error');
+                    return;
+                }
+
+                if (!chartSymbol) {
+                    this.showMessage('Please enter a trading symbol', 'error');
+                    return;
+                }
+
+                if (this.isLoading) return;
+
+                this.isLoading = true;
+                const uploadBtn = document.getElementById('uploadChartBtn');
+                const originalText = uploadBtn.innerHTML;
+                uploadBtn.innerHTML = '<span class="loading"></span> Analyzing Chart + Real Data...';
+                uploadBtn.disabled = true;
+
+                try {
+                    const formData = new FormData();
+                    formData.append('chart_image', chartFile);
+                    formData.append('symbol', chartSymbol.toUpperCase());
+                    formData.append('timeframe', chartTimeframe);
+
+                    const response = await fetch('/api/upload-chart-analysis/', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        this.displayChartAnalysisResult(data);
+                        this.showMessage('Chart analyzed with real price data!', 'success');
+                        this.loadChartAnalysisHistory();
+                        
+                        // Clear form
+                        document.getElementById('chartFile').value = '';
+                        document.getElementById('chartSymbol').value = '';
+                    } else {
+                        throw new Error(data.error || 'Failed to analyze chart');
+                    }
+                } catch (error) {
+                    console.error('Chart analysis error:', error);
+                    this.showMessage(`Error: ${error.message}`, 'error');
+                } finally {
+                    this.isLoading = false;
+                    uploadBtn.innerHTML = originalText;
+                    uploadBtn.disabled = false;
+                }
+            }
+
+            displayChartAnalysisResult(data) {
+                const resultDiv = document.getElementById('chartAnalysisResult');
+                const analysis = data.analysis;
+                const realPrediction = analysis.real_price_prediction;
+                const visualAnalysis = analysis.visual_analysis;
+
+                let resultClass = 'neutral';
+                let direction = 'WAIT';
+                let confidence = 0;
+
+                if (realPrediction && realPrediction.meets_threshold) {
+                    direction = realPrediction.direction;
+                    confidence = realPrediction.confidence;
+                    resultClass = direction === 'UP' ? 'up' : 'down';
+                }
+
+                resultDiv.className = `prediction-result ${resultClass} animate__animated animate__bounceIn`;
+                resultDiv.style.background = resultClass === 'up' ? 
+                    'linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2))' :
+                    resultClass === 'down' ?
+                    'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(245, 101, 101, 0.2))' :
+                    'rgba(100, 116, 139, 0.1)';
+
+                resultDiv.innerHTML = `
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; text-align: left;">
+                        <div>
+                            <div style="text-align: center; margin-bottom: 1.5rem;">
+                                <div style="font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-arrow-trend-${direction === 'UP' ? 'up' : direction === 'DOWN' ? 'down' : 'right'}"></i>
+                                    ${direction}
+                                </div>
+                                <div style="font-size: 1.2rem; font-weight: 500;">
+                                    ${confidence.toFixed(1)}% Confidence
+                                </div>
+                                <div style="font-size: 0.9rem; margin-top: 0.5rem; color: var(--accent-green);">
+                                    📊 Based on Real Price Data
+                                </div>
+                            </div>
+                            
+                            <div style="background: rgba(0, 0, 0, 0.2); padding: 1rem; border-radius: 8px;">
+                                <h4 style="margin: 0 0 0.75rem 0; color: var(--text-primary);">🎯 Real Price Analysis</h4>
+                                <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    <div>Direction: <span style="color: var(--text-primary);">${realPrediction?.direction || 'N/A'}</span></div>
+                                    <div>Confidence: <span style="color: var(--text-primary);">${(realPrediction?.confidence || 0).toFixed(1)}%</span></div>
+                                    <div>Current Price: <span style="color: var(--text-primary);">${(realPrediction?.current_price || 0).toFixed(4)}</span></div>
+                                    <div>Data Source: <span style="color: var(--accent-green);">API (Real)</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div style="background: rgba(0, 0, 0, 0.2); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <h4 style="margin: 0 0 0.75rem 0; color: var(--text-primary);">👁️ Visual Analysis</h4>
+                                <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    <div>Chart Trend: <span style="color: var(--text-primary);">${visualAnalysis?.trend_direction || 'N/A'}</span></div>
+                                    <div>Pattern: <span style="color: var(--text-primary);">${visualAnalysis?.pattern_type || 'N/A'}</span></div>
+                                    <div>Quality: <span style="color: var(--text-primary);">${visualAnalysis?.chart_quality || 'N/A'}</span></div>
+                                    <div>Purpose: <span style="color: var(--text-secondary);">Context Only</span></div>
+                                </div>
+                            </div>
+                            
+                            <div style="background: rgba(0, 0, 0, 0.2); padding: 1rem; border-radius: 8px;">
+                                <h4 style="margin: 0 0 0.75rem 0; color: var(--text-primary);">📋 Summary</h4>
+                                <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                                    <div>Symbol: <span style="color: var(--text-primary);">${data.symbol}</span></div>
+                                    <div>Timeframe: <span style="color: var(--text-primary);">${data.timeframe}</span></div>
+                                    <div>Prediction Created: <span style="color: ${data.prediction_created ? 'var(--accent-green)' : 'var(--accent-red))'}">${data.prediction_created ? 'Yes' : 'No'}</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            async loadChartAnalysisHistory() {
+                try {
+                    const response = await fetch('/api/chart-analyses/?limit=5');
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.displayChartAnalysisHistory(data);
+                    }
+                } catch (error) {
+                    console.error('Chart analysis history error:', error);
+                }
+            }
+
+            displayChartAnalysisHistory(analyses) {
+                const container = document.getElementById('chartHistoryContainer');
+                
+                if (analyses.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <i class="fas fa-chart-line" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                            <div>No chart analyses yet</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1rem;">
+                        ${analyses.map(analysis => {
+                            const realPred = analysis.real_prediction;
+                            const visualAnalysis = analysis.visual_analysis;
+                            const uploadTime = new Date(analysis.uploaded_at).toLocaleString();
+                            
+                            let directionColor = '#6b7280';
+                            if (realPred.direction === 'UP') directionColor = '#10b981';
+                            else if (realPred.direction === 'DOWN') directionColor = '#ef4444';
+
+                            return `
+                                <div style="background: rgba(15, 23, 42, 0.6); border-radius: 12px; padding: 1rem; border: 1px solid rgba(255, 255, 255, 0.1);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                        <div style="font-weight: 600; color: var(--text-primary);">${analysis.symbol}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${uploadTime}</div>
+                                    </div>
+                                    
+                                    ${analysis.chart_image_url ? `
+                                        <div style="margin-bottom: 0.75rem;">
+                                            <img src="${analysis.chart_image_url}" alt="Chart" 
+                                                 style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; cursor: pointer;"
+                                                 onclick="window.open('${analysis.chart_image_url}', '_blank')">
+                                        </div>
+                                    ` : ''}
+                                    
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.85rem; margin-bottom: 0.75rem;">
+                                        <div>
+                                            <span style="color: var(--text-secondary);">Real Prediction:</span>
+                                            <div style="color: ${directionColor}; font-weight: 600;">
+                                                <i class="fas fa-arrow-${realPred.direction === 'UP' ? 'up' : realPred.direction === 'DOWN' ? 'down' : 'right'}"></i>
+                                                ${realPred.direction}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style="color: var(--text-secondary);">Confidence:</span>
+                                            <div style="color: var(--text-primary); font-weight: 600;">
+                                                ${realPred.confidence.toFixed(1)}%
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style="color: var(--text-secondary);">Visual Trend:</span>
+                                            <div style="color: var(--text-primary);">
+                                                ${visualAnalysis.trend_direction}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span style="color: var(--text-secondary);">Data Source:</span>
+                                            <div style="color: var(--accent-green); font-weight: 500;">
+                                                API (Real)
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div style="text-align: center;">
+                                        <button onclick="app.deleteChartAnalysis(${analysis.id})" 
+                                                style="padding: 0.4rem 0.8rem; border: none; border-radius: 6px; background: #ef4444; color: white; font-size: 0.8rem; cursor: pointer;">
+                                            <i class="fas fa-trash"></i> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            async deleteChartAnalysis(analysisId) {
+                if (!confirm('Are you sure you want to delete this chart analysis?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/delete-chart-analysis/${analysisId}/`, {
+                        method: 'DELETE'
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.success) {
+                        this.showMessage('Chart analysis deleted successfully', 'success');
+                        this.loadChartAnalysisHistory();
+                    } else {
+                        throw new Error(data.error || 'Failed to delete chart analysis');
+                    }
+                } catch (error) {
+                    console.error('Delete chart analysis error:', error);
+                    this.showMessage(`Error: ${error.message}`, 'error');
+                }
+            }
+
             async autoResolvePredictions() {
                 try {
                     const response = await fetch('/api/resolve-predictions/', {
@@ -1293,7 +1622,7 @@
                     resolveBtn.disabled = false;
                 }
             }
-        }
+        } 
 
         // Initialize the application
         let app;

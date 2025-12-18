@@ -12,3 +12,5 @@ redis
 beautifulsoup4
 selenium
 alpha-vantage
+opencv-python
+Pillow
