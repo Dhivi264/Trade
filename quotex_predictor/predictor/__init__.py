@@ -1,1 +1,1 @@
-# Predictor app package
+# Management commands package

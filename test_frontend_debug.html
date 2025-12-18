@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chart Upload Debug Test</title>
+</head>
+<body>
+    <h1>Chart Upload Debug Test</h1>
+    
+    <div>
+        <label>Trading Symbol:</label>
+        <input type="text" id="chartSymbol" value="EURUSD" placeholder="e.g., EURUSD, GOLD, BTC">
+    </div>
+    
+    <div>
+        <label>Timeframe:</label>
+        <select id="chartTimeframe">
+            <option value="15m">15 Minutes</option>
+            <option value="1h" selected>1 Hour</option>
+        </select>
+    </div>
+    
+    <div>
+        <label>Chart Image:</label>
+        <input type="file" id="chartFile" accept="image/*">
+    </div>
+    
+    <button id="uploadChartBtn">Analyze Chart + Real Data</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('uploadChartBtn').addEventListener('click', async () => {
+            console.log('🔥 Button clicked!');
+            
+            const chartFile = document.getElementById('chartFile').files[0];
+            const chartSymbol = document.getElementById('chartSymbol').value.trim();
+            const chartTimeframe = document.getElementById('chartTimeframe').value;
+            
+            console.log('📁 File:', chartFile);
+            console.log('💱 Symbol:', chartSymbol);
+            console.log('⏰ Timeframe:', chartTimeframe);
+            
+            if (!chartFile) {
+                alert('Please select a chart image to upload');
+                return;
+            }
+            
+            if (!chartSymbol) {
+                alert('Please enter a trading symbol');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('chart_image', chartFile);
+                formData.append('symbol', chartSymbol.toUpperCase());
+                formData.append('timeframe', chartTimeframe);
+                
+                console.log('📤 Sending request...');
+                
+                const response = await fetch('http://localhost:8000/api/upload-chart-analysis/', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                console.log('📊 Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('📋 Response data:', data);
+                
+                if (response.ok && data.success) {
+                    document.getElementById('result').innerHTML = `
+                        <h3>✅ SUCCESS!</h3>
+                        <p><strong>Symbol:</strong> ${data.symbol}</p>
+                        <p><strong>Direction:</strong> ${data.analysis.real_price_prediction.direction}</p>
+                        <p><strong>Confidence:</strong> ${data.analysis.real_price_prediction.confidence}%</p>
+                        <p><strong>Prediction Created:</strong> ${data.prediction_created ? 'Yes' : 'No'}</p>
+                    `;
+                } else {
+                    throw new Error(data.error || 'Failed to analyze chart');
+                }
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('result').innerHTML = `<h3>❌ ERROR: ${error.message}</h3>`;
+            }
+        });
+    </script>
+</body>
+</html>

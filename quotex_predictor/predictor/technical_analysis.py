@@ -18,6 +18,11 @@ class AdvancedTechnicalAnalyzer:
     - Demand & Supply zones
     - Change of Character (CHoCH)
     - Market Structure Analysis
+    - Order Blocks (OB)
+    - ICT Concepts (Inner Circle Trader)
+    - Smart Money Concepts (SMC)
+    - Smart Money Divergence (SMD)
+    - Quantified Market Logic & Reasoning (QMLR)
     """
     
     def __init__(self):
@@ -78,7 +83,7 @@ class AdvancedTechnicalAnalyzer:
             # 8. Generate Final Prediction
             prediction = self._generate_advanced_prediction(
                 htf_bias, ltf_structure, bos_signals, fvg_signals, 
-                sr_levels, supply_demand, choch_signals, traditional_indicators, df_1h
+                sr_levels, supply_demand, choch_signals, traditional_indicators, df_1h, df_4h
             )
             
             return prediction
@@ -473,7 +478,7 @@ class AdvancedTechnicalAnalyzer:
             return {}
     
     def _generate_advanced_prediction(self, htf_bias, ltf_structure, bos_signals, fvg_signals, 
-                                    sr_levels, supply_demand, choch_signals, traditional_indicators, df) -> Dict[str, Any]:
+                                    sr_levels, supply_demand, choch_signals, traditional_indicators, df, df_4h) -> Dict[str, Any]:
         """
         Generate advanced 5-minute direction prediction using professional trading analysis
         
@@ -558,11 +563,61 @@ class AdvancedTechnicalAnalyzer:
             
             analysis_details['supply_demand'] = supply_demand
             
-            # 7. TRADITIONAL INDICATORS CONFIRMATION (10%)
+            # 7. ORDER BLOCK ANALYSIS (12%)
+            order_block_signals = self._analyze_order_blocks(df_1h)
+            if order_block_signals['signal']:
+                ob_direction = 'UP' if order_block_signals['signal'] == 'BULLISH' else 'DOWN'
+                ob_weight = 0.12 * order_block_signals['strength']
+                signals.append(ob_direction)
+                confidence_weights.append(ob_weight)
+            
+            analysis_details['order_blocks'] = order_block_signals
+            
+            # 8. ICT CONCEPTS ANALYSIS (10%)
+            ict_signals = self._analyze_ict_concepts(df_1h)
+            if ict_signals['signal']:
+                ict_direction = 'UP' if ict_signals['signal'] == 'BULLISH' else 'DOWN'
+                ict_weight = 0.10 * ict_signals['strength']
+                signals.append(ict_direction)
+                confidence_weights.append(ict_weight)
+            
+            analysis_details['ict_concepts'] = ict_signals
+            
+            # 9. SMART MONEY CONCEPTS (8%)
+            smc_signals = self._analyze_smart_money_concepts(df_1h)
+            if smc_signals['signal']:
+                smc_direction = 'UP' if smc_signals['signal'] == 'BULLISH' else 'DOWN'
+                smc_weight = 0.08 * smc_signals['strength']
+                signals.append(smc_direction)
+                confidence_weights.append(smc_weight)
+            
+            analysis_details['smart_money'] = smc_signals
+            
+            # 10. SMART MONEY DIVERGENCE (7%)
+            smd_signals = self._analyze_smart_money_divergence(df_1h)
+            if smd_signals['signal']:
+                smd_direction = 'UP' if smd_signals['signal'] == 'BULLISH' else 'DOWN'
+                smd_weight = 0.07 * smd_signals['strength']
+                signals.append(smd_direction)
+                confidence_weights.append(smd_weight)
+            
+            analysis_details['smart_money_divergence'] = smd_signals
+            
+            # 11. QMLR ANALYSIS (8%)
+            qmlr_signals = self._analyze_qmlr(df_1h, df_4h)
+            if qmlr_signals['signal']:
+                qmlr_direction = 'UP' if qmlr_signals['signal'] == 'BULLISH' else 'DOWN'
+                qmlr_weight = 0.08 * qmlr_signals['strength']
+                signals.append(qmlr_direction)
+                confidence_weights.append(qmlr_weight)
+            
+            analysis_details['qmlr'] = qmlr_signals
+            
+            # 12. TRADITIONAL INDICATORS CONFIRMATION (5%)
             traditional_signal, traditional_weight = self._analyze_traditional_confirmation(traditional_indicators, df)
             if traditional_signal:
                 signals.append(traditional_signal)
-                confidence_weights.append(traditional_weight * 0.10)
+                confidence_weights.append(traditional_weight * 0.05)
             
             analysis_details['traditional'] = traditional_indicators
             
@@ -747,6 +802,344 @@ class AdvancedTechnicalAnalyzer:
             logger.error(f"Indicator formatting error: {e}")
         
         return formatted
+    
+
+
+
+    def _analyze_order_blocks(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Analyze Order Blocks - institutional buying/selling zones"""
+        try:
+            current_price = df['close'].iloc[-1]
+            order_blocks = []
+            
+            # Look for strong moves that create order blocks
+            for i in range(20, len(df) - 5):
+                # Bullish Order Block: Strong move up after consolidation
+                if (df['close'].iloc[i] - df['open'].iloc[i]) / df['open'].iloc[i] > 0.015:  # 1.5% move
+                    # Find the last down candle before the move
+                    for j in range(i-1, max(0, i-10), -1):
+                        if df['close'].iloc[j] < df['open'].iloc[j]:
+                            ob = {
+                                'type': 'BULLISH_OB',
+                                'upper': df['high'].iloc[j],
+                                'lower': df['low'].iloc[j],
+                                'index': j,
+                                'strength': (df['close'].iloc[i] - df['open'].iloc[i]) / df['open'].iloc[i],
+                                'tested': False
+                            }
+                            order_blocks.append(ob)
+                            break
+                
+                # Bearish Order Block: Strong move down after consolidation
+                elif (df['open'].iloc[i] - df['close'].iloc[i]) / df['open'].iloc[i] > 0.015:  # 1.5% move
+                    for j in range(i-1, max(0, i-10), -1):
+                        if df['close'].iloc[j] > df['open'].iloc[j]:
+                            ob = {
+                                'type': 'BEARISH_OB',
+                                'upper': df['high'].iloc[j],
+                                'lower': df['low'].iloc[j],
+                                'index': j,
+                                'strength': (df['open'].iloc[i] - df['close'].iloc[i]) / df['open'].iloc[i],
+                                'tested': False
+                            }
+                            order_blocks.append(ob)
+                            break
+            
+            # Find active order blocks near current price
+            active_obs = []
+            for ob in order_blocks[-10:]:
+                distance = min(abs(current_price - ob['upper']), abs(current_price - ob['lower']))
+                if distance / current_price < 0.01:  # Within 1% of order block
+                    active_obs.append(ob)
+            
+            # Generate signal
+            signal = None
+            strength = 0
+            if active_obs:
+                strongest_ob = max(active_obs, key=lambda x: x['strength'])
+                if strongest_ob['type'] == 'BULLISH_OB' and not strongest_ob['tested']:
+                    signal = 'BULLISH'
+                    strength = strongest_ob['strength']
+                elif strongest_ob['type'] == 'BEARISH_OB' and not strongest_ob['tested']:
+                    signal = 'BEARISH'
+                    strength = strongest_ob['strength']
+            
+            return {
+                'signal': signal,
+                'strength': min(strength, 1.0),
+                'order_blocks': order_blocks[-5:],
+                'active_blocks': active_obs
+            }
+            
+        except Exception as e:
+            logger.error(f"Order block analysis error: {e}")
+            return {'signal': None, 'strength': 0, 'order_blocks': [], 'active_blocks': []}
+    
+    def _analyze_ict_concepts(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Analyze ICT (Inner Circle Trader) concepts"""
+        try:
+            # Simplified ICT analysis
+            swing_highs, swing_lows = self._identify_swing_points(df)
+            current_price = df['close'].iloc[-1]
+            
+            # Look for liquidity grabs and reversals
+            signal = None
+            strength = 0
+            
+            if len(swing_highs) > 0 and len(swing_lows) > 0:
+                recent_high = swing_highs[-1]['price']
+                recent_low = swing_lows[-1]['price']
+                
+                # Check for liquidity grab above high
+                if current_price > recent_high * 1.001:
+                    if df['close'].iloc[-1] < df['close'].iloc[-2]:  # Reversal
+                        signal = 'BEARISH'
+                        strength = 0.8
+                
+                # Check for liquidity grab below low
+                elif current_price < recent_low * 0.999:
+                    if df['close'].iloc[-1] > df['close'].iloc[-2]:  # Reversal
+                        signal = 'BULLISH'
+                        strength = 0.8
+            
+            return {
+                'signal': signal,
+                'strength': strength,
+                'liquidity_grab': signal is not None
+            }
+            
+        except Exception as e:
+            logger.error(f"ICT analysis error: {e}")
+            return {'signal': None, 'strength': 0}
+    
+    def _analyze_smart_money_concepts(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Analyze Smart Money Concepts (SMC)"""
+        try:
+            # Market structure shift detection
+            swing_highs, swing_lows = self._identify_swing_points(df)
+            
+            signal = None
+            strength = 0
+            
+            if len(swing_highs) >= 2 and len(swing_lows) >= 2:
+                # Check for break of structure
+                if swing_highs[-1]['price'] > swing_highs[-2]['price']:
+                    signal = 'BULLISH'
+                    strength = 0.7
+                elif swing_lows[-1]['price'] < swing_lows[-2]['price']:
+                    signal = 'BEARISH'
+                    strength = 0.7
+            
+            return {
+                'signal': signal,
+                'strength': strength,
+                'structure_break': signal is not None
+            }
+            
+        except Exception as e:
+            logger.error(f"Smart Money Concepts error: {e}")
+            return {'signal': None, 'strength': 0}
+    
+    def _analyze_smart_money_divergence(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """Analyze Smart Money Divergence patterns"""
+        try:
+            # Price vs RSI divergence
+            rsi = ta.momentum.rsi(df['close'], window=14)
+            
+            signal = None
+            strength = 0
+            
+            if len(rsi) >= 10:
+                price_higher = df['close'].iloc[-1] > df['close'].iloc[-5]
+                rsi_lower = rsi.iloc[-1] < rsi.iloc[-5]
+                
+                if price_higher and rsi_lower:
+                    signal = 'BEARISH'  # Bearish divergence
+                    strength = 0.6
+                elif not price_higher and not rsi_lower:
+                    signal = 'BULLISH'  # Bullish divergence
+                    strength = 0.6
+            
+            return {
+                'signal': signal,
+                'strength': strength,
+                'divergence_detected': signal is not None
+            }
+            
+        except Exception as e:
+            logger.error(f"Smart Money Divergence error: {e}")
+            return {'signal': None, 'strength': 0}
+    
+    def _analyze_qmlr(self, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> Dict[str, Any]:
+        """Quantified Market Logic & Reasoning analysis"""
+        try:
+            # Multi-factor quantified analysis
+            factors = []
+            
+            # Factor 1: Trend strength
+            trend_strength = self._calculate_trend_strength(df_1h)
+            if trend_strength > 0.7:
+                factors.append('STRONG_TREND')
+            
+            # Factor 2: Volume confirmation
+            volume = df_1h.get('volume', pd.Series([1000] * len(df_1h)))
+            volume_ratio = volume.iloc[-5:].mean() / volume.iloc[-20:].mean()
+            if volume_ratio > 1.2:
+                factors.append('VOLUME_CONFIRM')
+            
+            # Factor 3: Multi-timeframe alignment
+            if df_4h is not None and not df_4h.empty:
+                h1_trend = df_1h['close'].iloc[-1] > df_1h['close'].iloc[-20]
+                h4_trend = df_4h['close'].iloc[-1] > df_4h['close'].iloc[-10]
+                if h1_trend == h4_trend:
+                    factors.append('MTF_ALIGN')
+            
+            # Generate signal based on factor count
+            signal = None
+            strength = 0
+            
+            if len(factors) >= 2:
+                # Determine direction
+                if df_1h['close'].iloc[-1] > df_1h['close'].iloc[-10]:
+                    signal = 'BULLISH'
+                else:
+                    signal = 'BEARISH'
+                strength = len(factors) / 3.0  # Max 3 factors
+            
+            return {
+                'signal': signal,
+                'strength': min(strength, 1.0),
+                'factors': factors,
+                'factor_count': len(factors)
+            }
+            
+        except Exception as e:
+            logger.error(f"QMLR analysis error: {e}")
+            return {'signal': None, 'strength': 0}
+    
+    def get_precise_entry_signal(self, df_1h: pd.DataFrame, df_4h: pd.DataFrame = None) -> Dict[str, Any]:
+        """
+        🎯 PRECISE ENTRY SIGNAL SYSTEM
+        Returns exact entry timing with UP/DOWN direction and duration (1/5/10 minutes)
+        """
+        try:
+            # Perform full analysis
+            analysis = self.analyze(df_1h, df_4h)
+            
+            if not analysis['meets_threshold']:
+                return {
+                    'entry_signal': '⏳ WAIT',
+                    'direction': None,
+                    'entry_price': None,
+                    'duration_minutes': None,
+                    'confidence': analysis['confidence'],
+                    'reason': 'Low confidence - wait for better setup',
+                    'next_check': '1 minute'
+                }
+            
+            current_price = float(df_1h['close'].iloc[-1])
+            confidence = analysis['confidence']
+            
+            # 🎯 DETERMINE OPTIMAL DURATION based on signal strength
+            if confidence >= 90:
+                duration = 10  # 🔥 High confidence = 10 minutes
+                risk_level = "LOW"
+            elif confidence >= 80:
+                duration = 5   # ⚡ Medium confidence = 5 minutes  
+                risk_level = "MEDIUM"
+            else:
+                duration = 1   # ⚠️ Lower confidence = 1 minute
+                risk_level = "HIGH"
+            
+            # 🎯 CALCULATE PRECISE ENTRY POINT
+            entry_price = self._calculate_optimal_entry(df_1h, analysis)
+            
+            # 🎯 DETERMINE ENTRY TIMING
+            price_distance = abs(current_price - entry_price) / current_price * 100
+            
+            if price_distance < 0.05:  # Within 0.05%
+                entry_signal = '🚀 ENTER NOW'
+                timing = 'IMMEDIATE'
+            elif price_distance < 0.1:  # Within 0.1%
+                entry_signal = '⚡ PREPARE'
+                timing = 'NEXT 30 SECONDS'
+            elif price_distance < 0.2:  # Within 0.2%
+                entry_signal = '⏰ GET READY'
+                timing = 'NEXT 1-2 MINUTES'
+            else:
+                entry_signal = '⏳ WAIT'
+                timing = 'WAIT FOR BETTER ENTRY'
+            
+            # 🎯 GENERATE ACTION INSTRUCTION
+            if entry_signal == '🚀 ENTER NOW':
+                action = f"🎯 TRADE {analysis['direction']} for {duration} MINUTES!"
+            else:
+                action = f"📊 Monitor for {analysis['direction']} setup"
+            
+            return {
+                'entry_signal': entry_signal,
+                'direction': analysis['direction'],
+                'duration_minutes': duration,
+                'entry_price': round(entry_price, 5),
+                'current_price': round(current_price, 5),
+                'confidence': confidence,
+                'risk_level': risk_level,
+                'timing': timing,
+                'action': action,
+                'price_distance': round(price_distance, 3),
+                'analysis_summary': self._create_signal_summary(analysis),
+                'confluence_score': len([k for k, v in analysis['confluence_factors'].items() if v])
+            }
+            
+        except Exception as e:
+            logger.error(f"Precise entry signal error: {e}")
+            return {
+                'entry_signal': '❌ ERROR',
+                'direction': None,
+                'duration_minutes': None,
+                'confidence': 0,
+                'reason': f'System error: {str(e)[:50]}...'
+            }
+    
+    def _calculate_optimal_entry(self, df: pd.DataFrame, analysis: Dict) -> float:
+        """Calculate optimal entry price based on market structure"""
+        current_price = float(df['close'].iloc[-1])
+        
+        # Get support/resistance levels
+        sr_levels = analysis['advanced_analysis'].get('support_resistance', {})
+        
+        if analysis['direction'] == 'UP':
+            # For UP: Enter at support or current price with small buffer
+            support = sr_levels.get('nearest_support')
+            if support and current_price > support * 1.001:
+                return current_price  # Good position above support
+            else:
+                return current_price * 1.0002  # Small buffer above current
+        else:
+            # For DOWN: Enter at resistance or current price with small buffer
+            resistance = sr_levels.get('nearest_resistance')
+            if resistance and current_price < resistance * 0.999:
+                return current_price  # Good position below resistance
+            else:
+                return current_price * 0.9998  # Small buffer below current
+    
+    def _create_signal_summary(self, analysis: Dict) -> str:
+        """Create concise signal summary"""
+        factors = []
+        
+        confluence = analysis['confluence_factors']
+        if confluence.get('htf_ltf_alignment'):
+            factors.append("Multi-TF aligned")
+        if confluence.get('structure_signals'):
+            factors.append("Structure break")
+        if confluence.get('liquidity_signals'):
+            factors.append("Liquidity gap")
+        if confluence.get('level_proximity'):
+            factors.append("Key level")
+        
+        signal_count = analysis['signal_breakdown']['total_signals']
+        
+        return f"{len(factors)} confluence factors, {signal_count} signals"
     
     def _get_default_analysis(self) -> Dict[str, Any]:
         """Return default analysis when calculation fails"""
