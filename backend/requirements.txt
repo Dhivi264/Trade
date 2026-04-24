@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+opencv-python-headless
+pillow
+python-multipart
+requests
+websocket-client
