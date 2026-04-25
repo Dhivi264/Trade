@@ -19,8 +19,8 @@ export default function App() {
   const [autoDetect, setAutoDetect] = useState(true);
   const [symbol, setSymbol] = useState("EURUSD");
   const [exchange, setExchange] = useState("OANDA");
-  const [bars, setBars] = useState(300);
   const [demo, setDemo] = useState(false);
+  const bars = 300;
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -190,12 +190,10 @@ export default function App() {
               exchanges={EXCHANGES}
               symbol={symbol}
               exchange={exchange}
-              bars={bars}
               demo={demo}
-              onChange={({ symbol: s, exchange: e, bars: b, demo: d }) => {
+              onChange={({ symbol: s, exchange: e, demo: d }) => {
                 if (s !== undefined) setSymbol(s);
                 if (e !== undefined) setExchange(e);
-                if (b !== undefined) setBars(b);
                 if (d !== undefined) setDemo(d);
               }}
             />
@@ -208,21 +206,8 @@ export default function App() {
         )}
 
         {autoDetect && (
-          <section className="rounded-xl bg-panel border border-line p-5 grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="block text-xs font-medium text-slate-400 mb-1">
-                Bars per timeframe
-              </span>
-              <input
-                type="number"
-                min={60}
-                max={1000}
-                value={bars}
-                onChange={(e) => setBars(Number(e.target.value || 0))}
-                className="w-full bg-ink border border-line rounded-md px-3 py-2 focus:outline-none focus:border-emerald-400"
-              />
-            </label>
-            <label className="flex items-end gap-2 text-sm text-slate-300 pb-2">
+          <section className="rounded-xl bg-panel border border-line px-5 py-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
               <input
                 type="checkbox"
                 checked={demo}

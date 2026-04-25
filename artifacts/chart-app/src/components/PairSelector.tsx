@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 export interface PairSelectorChange {
   symbol?: string;
   exchange?: string;
-  bars?: number;
   demo?: boolean;
 }
 
@@ -12,7 +11,6 @@ interface Props {
   exchanges: string[];
   symbol: string;
   exchange: string;
-  bars: number;
   demo: boolean;
   onChange: (change: PairSelectorChange) => void;
 }
@@ -22,7 +20,6 @@ export default function PairSelector({
   exchanges,
   symbol,
   exchange,
-  bars,
   demo,
   onChange,
 }: Props) {
@@ -54,17 +51,6 @@ export default function PairSelector({
             </option>
           ))}
         </select>
-      </Field>
-
-      <Field label="Bars per timeframe">
-        <input
-          type="number"
-          min={60}
-          max={1000}
-          value={bars}
-          onChange={(e) => onChange({ bars: Number(e.target.value || 0) })}
-          className="w-full bg-ink border border-line rounded-md px-3 py-2 focus:outline-none focus:border-emerald-400"
-        />
       </Field>
 
       <Field label="Demo data (no TradingView)">
