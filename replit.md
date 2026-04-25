@@ -9,9 +9,9 @@ at 85; never claims guaranteed profits.
 ## Stack
 
 - **Backend**: Python 3.11 + FastAPI + Uvicorn (Pandas, NumPy, OpenCV,
-  Pillow). Single process serves both the API and the built React app.
-- **Frontend**: React 18 + Vite + Tailwind CSS, built to
-  `frontend/dist/` and served by FastAPI in production.
+  Pillow). Served as the API at `/api`.
+- **Frontend**: React + Vite + TypeScript + Tailwind v4 (chart-app
+  artifact), served at `/`.
 - **TradingView**: optional `tvdatafeed` import (unofficial / often
   blocked); falls back to CSV in `backend/data/` or a deterministic
   demo OHLC generator for UI testing.
@@ -19,30 +19,34 @@ at 85; never claims guaranteed profits.
 ## Layout
 
 ```
-backend/
-  main.py                 FastAPI entrypoint, mounts /api/* and SPA fallback
+backend/                    Python FastAPI service (run by api-server artifact)
+  main.py                   FastAPI entrypoint, exposes /api/*
   requirements.txt
   services/
-    tv_data.py            TradingView fetch + CSV / demo fallback
-    image_analysis.py     OpenCV / NumPy chart inspection
-    rule_engine.py        OHLC analysis + final decision engine
-  models/schemas.py       Pydantic schemas
+    tv_data.py              TradingView fetch + CSV / demo fallback
+    image_analysis.py       OpenCV / NumPy chart inspection
+    rule_engine.py          OHLC analysis + final decision engine
+  models/schemas.py         Pydantic schemas
 
-frontend/
-  src/App.jsx             Dashboard
-  src/components/         PairSelector, UploadChart, AnalysisResult, CandleTable
-  vite.config.js          dev proxy /api -> :8080, builds to dist/
+artifacts/
+  api-server/               Hosts the FastAPI service at path /api
+    .replit-artifact/artifact.toml
+  chart-app/                React + Vite frontend at path /
+    src/
+      App.tsx               Dashboard
+      types.ts              Shared API types
+      components/           PairSelector, UploadChart, AnalysisResult, CandleTable
+
+frontend/                   Legacy plain-React scaffold (kept for reference)
 ```
 
-## Workflow & port
+## Routing & ports
 
-- The `artifacts/api-server` artifact runs `uvicorn` (Python) on port
-  **8080** and is mounted at path **`/`**. FastAPI serves both the
-  React build and the API.
-- Production build runs `cd frontend && npm install && npm run build`
-  before booting uvicorn.
-- The Node Express scaffold under `artifacts/api-server/src/` is
-  unused — the artifact's services run our Python backend.
+- `artifacts/chart-app` (kind=web) — Vite dev server on port **22367**,
+  mounted at `/`. Calls `/api/...` for backend.
+- `artifacts/api-server` (kind=api) — FastAPI/Uvicorn on port **8080**,
+  mounted at `/api`. The Node scaffold under `src/` is unused; the
+  artifact's services run our Python backend.
 
 ## Endpoints
 
@@ -60,3 +64,6 @@ frontend/
   `TV_USERNAME` and `TV_PASSWORD` only — never hardcoded.
 - Uploaded images are processed in memory; nothing is persisted.
 - Image type / size validated (PNG/JPG/WebP; 8 MB max).
+- Confidence is capped at 85. LOW image quality further caps at 50.
+- When OHLC bias / structure / image bias do not align, the engine
+  returns `NO TRADE`.
