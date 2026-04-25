@@ -25,6 +25,7 @@ from fastapi.staticfiles import StaticFiles
 
 from models.schemas import AnalyzeResponse, CandlesResponse, Candle, Evidence, ImageAnalysis
 from services.image_analysis import analyze_chart_image
+from services.pair_detection import SUPPORTED_PAIRS, detect_pair_from_image
 from services.rule_engine import make_decision
 from services.tv_data import get_demo_ohlc, get_ohlc
 
@@ -35,10 +36,7 @@ logging.basicConfig(level=logging.INFO)
 # Constants
 # ---------------------------------------------------------------------------
 
-ALLOWED_SYMBOLS = {
-    "EURUSD", "GBPUSD", "AUDJPY", "USDJPY", "EURJPY",
-    "GBPJPY", "USDCAD", "XAUUSD", "BTCUSD", "ETHUSD",
-}
+ALLOWED_SYMBOLS = set(SUPPORTED_PAIRS)
 ALLOWED_EXCHANGES = {"OANDA", "FX_IDC", "FOREXCOM", "BINANCE"}
 ALLOWED_TIMEFRAMES = {"1M", "5M", "15M", "30M", "1H", "4H", "1D"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8 MB
@@ -133,17 +131,37 @@ async def analyze_image(image: UploadFile = File(...)):
     return ImageAnalysis(**result)
 
 
+@app.post("/api/detect-from-image")
+async def detect_from_image(image: UploadFile = File(...)):
+    """OCR the uploaded chart screenshot and return the detected
+    trading pair, OTC flag and an exchange hint."""
+    if image.content_type not in ALLOWED_MIME:
+        raise HTTPException(400, f"Unsupported file type '{image.content_type}'.")
+    data = await image.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Uploaded image exceeds 8 MB limit.")
+    if len(data) < 200:
+        raise HTTPException(400, "Uploaded image is empty or too small.")
+    result = detect_pair_from_image(data)
+    # Only surface symbols we currently support in the rule engine.
+    if result.get("symbol") and result["symbol"] not in ALLOWED_SYMBOLS:
+        result["symbol"] = None
+        result["exchange"] = None
+        result["confidence"] = 0
+        result["reason"] = (
+            "Detected pair is not currently supported by the analyzer."
+        )
+    return JSONResponse(result)
+
+
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze(
-    symbol: str = Form(...),
-    exchange: str = Form(...),
+    symbol: Optional[str] = Form(None),
+    exchange: Optional[str] = Form(None),
     bars: int = Form(300),
     demo: bool = Form(False),
     image: UploadFile = File(...),
 ):
-    sym = _validate_symbol(symbol)
-    exch = _validate_exchange(exchange)
-
     # 1) Validate + read image
     if image.content_type not in ALLOWED_MIME:
         raise HTTPException(400, f"Unsupported file type '{image.content_type}'.")
@@ -152,6 +170,30 @@ async def analyze(
         raise HTTPException(413, "Uploaded image exceeds 8 MB limit.")
     if len(data) < 200:
         raise HTTPException(400, "Uploaded image is empty or too small.")
+
+    # 1a) If symbol/exchange not supplied, OCR the chart header.
+    detection_warning: Optional[str] = None
+    detected_otc = False
+    if not symbol or not exchange:
+        det = detect_pair_from_image(data)
+        if det.get("symbol") and det["symbol"] in ALLOWED_SYMBOLS:
+            symbol = symbol or det["symbol"]
+            exchange = exchange or det.get("exchange") or "OANDA"
+            detected_otc = bool(det.get("is_otc"))
+            detection_warning = (
+                f"Pair auto-detected from screenshot: {symbol}"
+                + (" (OTC)" if detected_otc else "")
+                + f". Exchange hint: {exchange}."
+            )
+        else:
+            raise HTTPException(
+                400,
+                "Could not detect a trading pair from the uploaded chart. "
+                "Please pick a pair and exchange manually.",
+            )
+
+    sym = _validate_symbol(symbol)
+    exch = _validate_exchange(exchange)
 
     # 2) Fetch OHLC for 1H, 15M, 5M
     bars = int(max(60, min(bars, 1000)))
@@ -199,6 +241,13 @@ async def analyze(
     if source == "synthetic":
         decision["warnings"].append(
             "DEMO data — synthetic OHLC. This decision is for UI testing only."
+        )
+
+    if detection_warning:
+        decision["warnings"].insert(0, detection_warning)
+    if detected_otc:
+        decision["warnings"].append(
+            "Quotex OTC asset detected — TradingView OHLC may NOT match Quotex OTC prices."
         )
 
     last_5m = series["5M"][-10:]

@@ -31,3 +31,13 @@ export interface AnalyzeResponse {
   data_source?: string;
   candles_preview?: Candle[];
 }
+
+export interface DetectResponse {
+  symbol: string | null;
+  exchange: string | null;
+  is_otc: boolean;
+  raw_text: string;
+  confidence: number;
+  candidates: string[];
+  reason: string;
+}
