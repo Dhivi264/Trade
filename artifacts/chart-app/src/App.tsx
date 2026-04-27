@@ -6,10 +6,11 @@ import CandleTable from "./components/CandleTable";
 import type { AnalyzeResponse, DetectResponse } from "./types";
 
 const SYMBOLS = [
-  "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF",
-  "EURJPY", "GBPJPY", "AUDJPY", "EURGBP", "EURAUD", "EURCHF",
-  "GBPAUD", "GBPCAD", "AUDNZD", "AUDCAD",
-  "NZDJPY", "CADJPY", "CHFJPY",
+  "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCAD", "USDCHF",
+  "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY",
+  "EURGBP", "EURAUD", "EURCAD", "EURCHF",
+  "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD",
+  "AUDCAD", "AUDCHF",
   "XAUUSD", "XAGUSD",
   "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD",
 ];

@@ -19,13 +19,37 @@ Returns a dict shaped like:
 from __future__ import annotations
 
 import logging
+import os
 import re
+import shutil
 from io import BytesIO
 from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
 from PIL import Image
+
+
+def _ensure_tessdata() -> None:
+    """Some Nix profiles ship a leftover empty tessdata directory that
+    `tesseract` finds before the real one. Point TESSDATA_PREFIX at a
+    directory that actually contains `eng.traineddata` so OCR doesn't
+    hang trying to load missing language files."""
+    if os.environ.get("TESSDATA_PREFIX"):
+        return
+    binary = shutil.which("tesseract")
+    if not binary:
+        return
+    # Resolve symlinks (Nix wraps binaries in profile dirs that
+    # symlink into /nix/store) and walk up to <prefix>/share/tessdata.
+    real = os.path.realpath(binary)
+    prefix = os.path.dirname(os.path.dirname(real))
+    candidate = os.path.join(prefix, "share", "tessdata")
+    if os.path.exists(os.path.join(candidate, "eng.traineddata")):
+        os.environ["TESSDATA_PREFIX"] = candidate
+
+
+_ensure_tessdata()
 
 try:
     import pytesseract  # type: ignore
@@ -36,13 +60,17 @@ except Exception:  # pragma: no cover - tesseract optional
 
 logger = logging.getLogger("chart_evidence.pair_detection")
 
-# Pairs we currently support in the rule engine. Extend as the
-# product expands.
+# Pairs we currently support in the rule engine.
+# This mirrors the non-OTC FX list available on the Quotex platform,
+# plus a small set of metals/crypto we already wire up to TradingView.
 SUPPORTED_PAIRS: List[str] = [
-    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF",
-    "EURJPY", "GBPJPY", "AUDJPY", "EURGBP", "EURAUD", "EURNZD", "EURCHF",
-    "GBPAUD", "GBPCAD", "GBPCHF", "AUDNZD", "AUDCAD", "AUDCHF",
-    "NZDJPY", "CADJPY", "CHFJPY", "NZDCAD",
+    # Quotex non-OTC FX
+    "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCAD", "USDCHF",
+    "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY",
+    "EURGBP", "EURAUD", "EURCAD", "EURCHF",
+    "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD",
+    "AUDCAD", "AUDCHF",
+    # Extras (metals, crypto) — auto-detected when present
     "XAUUSD", "XAGUSD",
     "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD",
 ]
@@ -62,8 +90,7 @@ _EXCHANGE_HINT = {
 }
 
 
-def _preprocess_top_strip(file_bytes: bytes) -> Optional[np.ndarray]:
-    """Return a high-contrast grayscale of the top ~18% of the chart."""
+def _decode(file_bytes: bytes) -> Optional[np.ndarray]:
     arr = np.frombuffer(file_bytes, dtype=np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
     if img is None:
@@ -74,35 +101,63 @@ def _preprocess_top_strip(file_bytes: bytes) -> Optional[np.ndarray]:
             return None
     if img is None or img.size == 0:
         return None
+    return img
 
-    h, w = img.shape[:2]
-    # Quotex always shows the asset name top-left. Crop the top 18%
-    # and the left 60% for cleaner OCR with fewer false positives.
-    top = img[: max(60, int(h * 0.18)), : max(200, int(w * 0.6))]
 
-    # Upscale tiny screenshots so tesseract has something to chew on.
-    if max(top.shape[:2]) < 600:
-        scale = 600 / max(top.shape[:2])
-        top = cv2.resize(top, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+def _binarize(region: np.ndarray) -> np.ndarray:
+    """Return a high-contrast B/W version of `region` for OCR."""
+    longest = max(region.shape[:2])
+    # Upscale tiny regions so tesseract has something to chew on,
+    # but cap the result to keep OCR latency bounded.
+    if longest < 600:
+        scale = 600 / longest
+    elif longest > 1400:
+        scale = 1400 / longest
+    else:
+        scale = 1.0
+    if scale != 1.0:
+        region = cv2.resize(region, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
 
-    gray = cv2.cvtColor(top, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
 
-    # Quotex uses light text on a dark background. Both polarities
-    # are tried; the one with more letter-like contours wins.
+    # Try both polarities — Quotex uses light-on-dark for headers and
+    # dark-on-light for some info panels. Pick the one with fewer ink
+    # pixels (cleaner text).
     _, dark_on_light = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     light_on_dark = cv2.bitwise_not(dark_on_light)
 
-    def _score(b: np.ndarray) -> int:
-        # Heuristic: count "ink" pixels — fewer is better for OCR
-        # on top of dark UI chrome, but not too few.
+    def _ink(b: np.ndarray) -> int:
         return int(np.count_nonzero(b == 0))
 
-    chosen = dark_on_light if _score(dark_on_light) < _score(light_on_dark) else light_on_dark
-
-    # Slight dilation joins broken letters
+    chosen = dark_on_light if _ink(dark_on_light) < _ink(light_on_dark) else light_on_dark
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
-    chosen = cv2.morphologyEx(chosen, cv2.MORPH_CLOSE, kernel)
-    return chosen
+    return cv2.morphologyEx(chosen, cv2.MORPH_CLOSE, kernel)
+
+
+def _ocr_regions(file_bytes: bytes) -> List[np.ndarray]:
+    """Return preprocessed images of the regions where Quotex draws
+    the asset name. Quotex web/desktop renders the pair top-left.
+    Quotex mobile renders the active asset on a bottom info bar, so
+    on tall (portrait) screenshots we also OCR the bottom strip."""
+    img = _decode(file_bytes)
+    if img is None:
+        return []
+
+    h, w = img.shape[:2]
+    regions = []
+
+    # Top header — always scanned. Top 22%, left 60% keeps the OCR
+    # fast and avoids the price-axis on the right.
+    top = img[: max(60, int(h * 0.22)), : max(200, int(w * 0.60))]
+    regions.append(_binarize(top))
+
+    # Mobile / portrait screenshot: also scan the bottom info bar.
+    if h > w * 1.3:
+        bottom = img[int(h * 0.78):, : max(200, int(w * 0.70))]
+        if bottom.size > 0:
+            regions.append(_binarize(bottom))
+
+    return regions
 
 
 def _normalize(s: str) -> str:
@@ -122,10 +177,11 @@ def _scan_for_pairs(text: str) -> List[str]:
     for pair in SUPPORTED_PAIRS:
         a, b = pair[:3], pair[3:]
         # Match "EUR/USD", "EUR USD", "EUR-USD" or plain "EURUSD".
-        # No trailing word boundary because OCR commonly merges the
-        # following token (e.g. "EURUSDOTC" -> "EURUSDOTE"); we just
-        # require the pair starts on a word boundary.
-        pattern = rf"(?:^|\W){a}\s*[/\- ]?\s*{b}"
+        # We don't require word boundaries because OCR routinely
+        # merges the surrounding glyphs (e.g. "vrQEUR/JPY",
+        # "EURUSDOTE"). Six-letter currency codes are specific
+        # enough that incidental substring matches are very rare.
+        pattern = rf"{a}\s*[/\- ]?\s*{b}"
         if re.search(pattern, norm):
             if pair not in candidates:
                 found.append(pair)
@@ -146,8 +202,8 @@ def detect_pair_from_image(file_bytes: bytes) -> Dict:
             "reason": "OCR engine (tesseract) is not available on this host.",
         }
 
-    pre = _preprocess_top_strip(file_bytes)
-    if pre is None:
+    regions = _ocr_regions(file_bytes)
+    if not regions:
         return {
             "symbol": None,
             "exchange": None,
@@ -165,11 +221,16 @@ def detect_pair_from_image(file_bytes: bytes) -> Dict:
         "--oem 3 --psm 6 "
         "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789/-% "
     )
-    try:
-        raw_text = pytesseract.image_to_string(pre, config=config) or ""
-    except Exception as exc:
-        logger.warning("OCR failed: %s", exc)
-        raw_text = ""
+    raw_text_parts: List[str] = []
+    for region in regions:
+        try:
+            chunk = pytesseract.image_to_string(region, config=config) or ""
+        except Exception as exc:
+            logger.warning("OCR failed on region: %s", exc)
+            chunk = ""
+        if chunk.strip():
+            raw_text_parts.append(chunk.strip())
+    raw_text = "\n".join(raw_text_parts)
 
     norm = _normalize(raw_text)
     candidates = _scan_for_pairs(raw_text)
