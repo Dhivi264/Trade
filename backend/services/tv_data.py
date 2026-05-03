@@ -26,6 +26,26 @@ except Exception:  # noqa: BLE001 - any import error means no tvdatafeed
     TV_AVAILABLE = False
 
 
+_TV_INSTANCE: Optional[Any] = None
+
+
+def _get_tv_client() -> Optional[Any]:
+    """Get or create the singleton TvDatafeed instance."""
+    global _TV_INSTANCE
+    if not TV_AVAILABLE:
+        return None
+    if _TV_INSTANCE is None:
+        try:
+            username = (os.getenv("TV_USERNAME") or "").strip() or None
+            password = (os.getenv("TV_PASSWORD") or "").strip() or None
+            # If no username, it's guest mode by default
+            _TV_INSTANCE = TvDatafeed(username=username, password=password)
+        except Exception:
+            # Internally tvdatafeed handles most errors by falling back to guest mode
+            pass
+    return _TV_INSTANCE
+
+
 # Map the user-friendly timeframe to a tvdatafeed Interval (when available).
 def _tv_interval(timeframe: str):
     if not TV_AVAILABLE:
@@ -49,9 +69,15 @@ def _normalize_df(df) -> List[Dict[str, Any]]:
     if df is None or len(df) == 0:
         return out
     for ts, row in df.iterrows():
+        # Ensure time is in YYYY-MM-DD HH:mm format
+        if hasattr(ts, "strftime"):
+            time_str = ts.strftime("%Y-%m-%d %H:%M")
+        else:
+            time_str = str(ts)[:16].replace("T", " ")
+            
         out.append(
             {
-                "time": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                "time": time_str,
                 "open": float(row.get("open", 0)),
                 "high": float(row.get("high", 0)),
                 "low": float(row.get("low", 0)),
@@ -67,6 +93,7 @@ def get_ohlc(
     exchange: str,
     timeframe: str,
     bars: int = 300,
+    force_guest: bool = False,
 ) -> Tuple[List[Dict[str, Any]], str]:
     """Fetch OHLC candles for a symbol/exchange/timeframe.
 
@@ -80,9 +107,17 @@ def get_ohlc(
             interval = _tv_interval(timeframe)
             if interval is None:
                 raise ValueError(f"Unsupported timeframe: {timeframe}")
-            username = os.getenv("TV_USERNAME") or None
-            password = os.getenv("TV_PASSWORD") or None
-            tv = TvDatafeed(username=username, password=password)
+
+            tv = _get_tv_client()
+            if tv is None:
+                raise RuntimeError("TradingView client could not be initialized.")
+
+            # Check if login was requested but failed (unauthorized token)
+            # We only raise this error if force_guest is False.
+            username = (os.getenv("TV_USERNAME") or "").strip()
+            if not force_guest and username and hasattr(tv, 'token') and str(tv.token).startswith('unauthorized'):
+                raise RuntimeError(f"TradingView login failed for user '{username}'. Falling back...")
+
             df = tv.get_hist(
                 symbol=symbol,
                 exchange=exchange,
@@ -160,11 +195,13 @@ def get_demo_ohlc(symbol: str, timeframe: str, bars: int = 300, seed: int = 42) 
     step = tf_minutes.get(timeframe.upper(), 5)
     rng = random.Random(seed + hash(symbol) % 100000 + step)
     # base price
-    base = 1.10 if "USD" in symbol and "JPY" not in symbol else (
-        150.0 if "JPY" in symbol else (
-            2400.0 if symbol.upper() == "XAUUSD" else (
-                65000.0 if symbol.upper() == "BTCUSD" else (
-                    3500.0 if symbol.upper() == "ETHUSD" else 1.0
+    base = 1.10 if "USD" in symbol and "JPY" not in symbol and "NZD" not in symbol else (
+        0.60 if "NZDUSD" in symbol.upper() else (
+            150.0 if "JPY" in symbol else (
+                2400.0 if symbol.upper() == "XAUUSD" else (
+                    65000.0 if symbol.upper() == "BTCUSD" else (
+                        3500.0 if symbol.upper() == "ETHUSD" else 1.0
+                    )
                 )
             )
         )

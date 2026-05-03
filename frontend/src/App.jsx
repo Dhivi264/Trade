@@ -5,16 +5,11 @@ import AnalysisResult from "./components/AnalysisResult.jsx";
 import CandleTable from "./components/CandleTable.jsx";
 
 const SYMBOLS = [
-  "EURUSD", "GBPUSD", "AUDJPY", "USDJPY", "EURJPY",
-  "GBPJPY", "USDCAD", "XAUUSD", "BTCUSD", "ETHUSD",
+  "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF",
+  "EURJPY", "GBPJPY", "AUDJPY", "NZDJPY", "XAUUSD", "BTCUSD", "ETHUSD",
 ];
-const EXCHANGES = ["OANDA", "FX_IDC", "FOREXCOM", "BINANCE"];
-
 export default function App() {
   const [symbol, setSymbol] = useState("EURUSD");
-  const [exchange, setExchange] = useState("OANDA");
-  const [bars, setBars] = useState(300);
-  const [demo, setDemo] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -33,9 +28,6 @@ export default function App() {
     try {
       const fd = new FormData();
       fd.append("symbol", symbol);
-      fd.append("exchange", exchange);
-      fd.append("bars", String(bars));
-      fd.append("demo", String(demo));
       fd.append("image", imageFile);
 
       const res = await fetch("/api/analyze", { method: "POST", body: fd });
@@ -93,16 +85,9 @@ export default function App() {
             <h2 className="font-semibold text-slate-200">1. Inputs</h2>
             <PairSelector
               symbols={SYMBOLS}
-              exchanges={EXCHANGES}
               symbol={symbol}
-              exchange={exchange}
-              bars={bars}
-              demo={demo}
-              onChange={({ symbol: s, exchange: e, bars: b, demo: d }) => {
+              onChange={({ symbol: s }) => {
                 if (s !== undefined) setSymbol(s);
-                if (e !== undefined) setExchange(e);
-                if (b !== undefined) setBars(b);
-                if (d !== undefined) setDemo(d);
               }}
             />
             <p className="text-xs text-slate-400">
@@ -148,8 +133,8 @@ export default function App() {
         <footer className="pt-6 pb-12 text-xs text-slate-500 space-y-1">
           <p>Limitations:</p>
           <ul className="list-disc list-inside space-y-0.5">
-            <li>TradingView data may not match Quotex exactly.</li>
-            <li>OTC Quotex charts may not match TradingView data at all.</li>
+            <li>Market data may not match Quotex exactly.</li>
+            <li>OTC Quotex charts may not match live market data at all.</li>
             <li>Screenshot analysis is visual confirmation only — not exact OHLC extraction.</li>
             <li>This system does not guarantee profit. Weak or conflicting evidence returns NO TRADE.</li>
           </ul>
@@ -165,7 +150,7 @@ function humanizeError(e) {
     return "Could not reach the backend. Make sure the API is running.";
   }
   if (msg.toLowerCase().includes("tradingview")) {
-    return msg + "  (Tip: enable Demo data to test the UI without TradingView.)";
+    return "Market data fetch failed. This usually means TradingView is unreachable or the asset is temporarily unavailable.";
   }
   return msg;
 }

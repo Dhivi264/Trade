@@ -240,11 +240,12 @@ def make_decision(
     elif image_bias == "BEARISH":
         img_dir = "BEAR"
     if img_dir is not None and img_dir != ohlc_dir:
-        warnings.append("TradingView OHLC trend disagrees with the screenshot's visual bias.")
+        warnings.append("OHLC trend disagrees with the screenshot's visual bias.")
+        # Strict rule: Disagreement = NO TRADE unless OHLC structure is exceptionally clear (handled by aligned_evidence)
         return _package(
             decision="NO TRADE",
-            confidence=40,
-            reason="Conflicting evidence between OHLC data and uploaded screenshot.",
+            confidence=30,  # Reduced confidence on disagreement
+            reason="Conflicting evidence between verified OHLC data and screenshot visual bias.",
             h1_trend=h1_trend,
             m15_trend=m15_trend,
             m5_move=m5_move,

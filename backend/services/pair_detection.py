@@ -53,10 +53,12 @@ _ensure_tessdata()
 
 try:
     import pytesseract  # type: ignore
+    # Verify the binary is actually available in the PATH
+    pytesseract.get_tesseract_version()
     _OCR_AVAILABLE = True
-except Exception:  # pragma: no cover - tesseract optional
-    pytesseract = None
+except Exception:
     _OCR_AVAILABLE = False
+    pytesseract = None
 
 logger = logging.getLogger("chart_evidence.pair_detection")
 
@@ -65,11 +67,11 @@ logger = logging.getLogger("chart_evidence.pair_detection")
 # plus a small set of metals/crypto we already wire up to TradingView.
 SUPPORTED_PAIRS: List[str] = [
     # Quotex non-OTC FX
-    "EURUSD", "GBPUSD", "AUDUSD", "USDJPY", "USDCAD", "USDCHF",
-    "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY",
-    "EURGBP", "EURAUD", "EURCAD", "EURCHF",
+    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDJPY", "USDCAD", "USDCHF",
+    "EURJPY", "GBPJPY", "AUDJPY", "CADJPY", "CHFJPY", "NZDJPY",
+    "EURGBP", "EURAUD", "EURCAD", "EURCHF", "EURNZD",
     "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD",
-    "AUDCAD", "AUDCHF",
+    "AUDCAD", "AUDCHF", "AUDNZD", "CADCHF",
     # Extras (metals, crypto) — auto-detected when present
     "XAUUSD", "XAGUSD",
     "BTCUSD", "ETHUSD", "LTCUSD", "XRPUSD",
@@ -239,7 +241,7 @@ def detect_pair_from_image(file_bytes: bytes) -> Dict:
     is_otc = bool(re.search(r"OT[CGE0Q]", norm))
 
     symbol: Optional[str] = candidates[0] if candidates else None
-    exchange = _EXCHANGE_HINT.get(symbol or "", "OANDA") if symbol else None
+    exchange = _EXCHANGE_HINT.get(symbol or "") if symbol else None
 
     if symbol is None:
         confidence = 0

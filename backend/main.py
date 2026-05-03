@@ -18,7 +18,11 @@ import logging
 import os
 from typing import List, Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+
+# Load environment variables from .env file
+load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -37,7 +41,6 @@ logging.basicConfig(level=logging.INFO)
 # ---------------------------------------------------------------------------
 
 ALLOWED_SYMBOLS = set(SUPPORTED_PAIRS)
-ALLOWED_EXCHANGES = {"OANDA", "FX_IDC", "FOREXCOM", "BINANCE"}
 ALLOWED_TIMEFRAMES = {"1M", "5M", "15M", "30M", "1H", "4H", "1D"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8 MB
 ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
@@ -60,11 +63,6 @@ def _validate_symbol(symbol: str) -> str:
     return s
 
 
-def _validate_exchange(exchange: str) -> str:
-    e = (exchange or "").upper().strip()
-    if e not in ALLOWED_EXCHANGES:
-        raise HTTPException(400, f"Unsupported exchange '{exchange}'.")
-    return e
 
 
 def _validate_timeframe(tf: str) -> str:
@@ -157,9 +155,7 @@ async def detect_from_image(image: UploadFile = File(...)):
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze(
     symbol: Optional[str] = Form(None),
-    exchange: Optional[str] = Form(None),
     bars: int = Form(300),
-    demo: bool = Form(False),
     image: UploadFile = File(...),
 ):
     # 1) Validate + read image
@@ -171,48 +167,82 @@ async def analyze(
     if len(data) < 200:
         raise HTTPException(400, "Uploaded image is empty or too small.")
 
-    # 1a) If symbol/exchange not supplied, OCR the chart header.
+    # 1a) OCR the chart header to detect pair and OTC status.
+    det = detect_pair_from_image(data)
+    detected_symbol = det.get("symbol")
+    detected_otc = bool(det.get("is_otc"))
     detection_warning: Optional[str] = None
-    detected_otc = False
-    if not symbol or not exchange:
-        det = detect_pair_from_image(data)
-        if det.get("symbol") and det["symbol"] in ALLOWED_SYMBOLS:
-            symbol = symbol or det["symbol"]
-            exchange = exchange or det.get("exchange") or "OANDA"
-            detected_otc = bool(det.get("is_otc"))
+
+    if not symbol:
+        # If no symbol provided, we MUST detect it from image.
+        if detected_symbol and detected_symbol in ALLOWED_SYMBOLS:
+            symbol = detected_symbol
             detection_warning = (
                 f"Pair auto-detected from screenshot: {symbol}"
                 + (" (OTC)" if detected_otc else "")
-                + f". Exchange hint: {exchange}."
+                + ". Data source: TradingView (MT5 Fallback)."
             )
         else:
             raise HTTPException(
                 400,
                 "Could not detect a trading pair from the uploaded chart. "
-                "Please pick a pair and exchange manually.",
+                "Please pick a pair manually.",
             )
+    else:
+        # Symbol was provided manually. Just check for mismatch/OTC.
+        if detected_symbol and detected_symbol != symbol:
+            detection_warning = (
+                f"Mismatched pair? Screenshot appears to be {detected_symbol}"
+                + (" (OTC)" if detected_otc else "")
+                + f", but you selected {symbol}. Analyzing {symbol}."
+            )
+        elif detected_otc:
+            detection_warning = f"Quotex OTC asset detected ({symbol})."
 
     sym = _validate_symbol(symbol)
-    exch = _validate_exchange(exchange)
 
-    # 2) Fetch OHLC for 1H, 15M, 5M
+    # 2) Fetch OHLC for 1H, 15M, 5M (Respecting .env configuration)
     bars = int(max(60, min(bars, 1000)))
     series = {}
-    source = None
-    try:
-        if demo:
-            for tf in ("1H", "15M", "5M"):
-                series[tf] = get_demo_ohlc(sym, tf, bars)
-            source = "synthetic"
-        else:
-            for tf in ("1H", "15M", "5M"):
-                candles, src = get_ohlc(sym, exch, tf, bars=bars)
-                if not candles or len(candles) < 30:
-                    raise RuntimeError(f"Not enough candles for {tf}.")
-                series[tf] = candles
-                source = src
-    except RuntimeError as exc:
-        raise HTTPException(502, str(exc))
+    source = "Unavailable"
+
+    primary = (os.getenv("DATA_SOURCE_PRIMARY") or "tradingview").lower()
+    fallback = (os.getenv("DATA_SOURCE_FALLBACK") or "mt5").lower()
+
+    # Try sources in order (Primary -> Fallback -> Guest Fallback)
+    for current_source_key in [primary, fallback, "tradingview_guest"]:
+        try:
+            if current_source_key == "tradingview":
+                source = "TradingView"
+                for tf in ("1H", "15M", "5M"):
+                    candles, _ = get_ohlc(sym, "OANDA", tf, bars=bars)
+                    if not candles or len(candles) < 30:
+                        raise RuntimeError(f"TradingView: Not enough candles for {tf}.")
+                    series[tf] = candles
+                break  # Success!
+            elif current_source_key == "mt5":
+                from services.mt5_data import get_mt5_ohlc
+                source = "MetaTrader5"
+                for tf in ("1H", "15M", "5M"):
+                    candles = get_mt5_ohlc(sym, tf, bars=bars)
+                    if not candles or len(candles) < 30:
+                        raise RuntimeError(f"MT5: Not enough candles for {tf}.")
+                    series[tf] = candles
+                break  # Success!
+            elif current_source_key == "tradingview_guest":
+                source = "TradingView (Guest Mode)"
+                for tf in ("1H", "15M", "5M"):
+                    candles, _ = get_ohlc(sym, "OANDA", tf, bars=bars, force_guest=True)
+                    if not candles or len(candles) < 30:
+                        raise RuntimeError(f"TradingView Guest: Not enough candles for {tf}.")
+                    series[tf] = candles
+                break  # Success!
+        except Exception as e:
+            logger.warning("%s fetch failed: %s", current_source_key.capitalize(), e)
+            continue
+    else:
+        # Loop finished without breaking -> all sources failed
+        raise HTTPException(502, f"OHLC data unavailable from {primary} and {fallback}")
 
     # 3) Image analysis
     image_result = analyze_chart_image(data)
@@ -238,10 +268,6 @@ async def analyze(
     if decision["decision"] == "NO TRADE" and decision["confidence"] > 60:
         decision["confidence"] = 60
 
-    if source == "synthetic":
-        decision["warnings"].append(
-            "DEMO data — synthetic OHLC. This decision is for UI testing only."
-        )
 
     if detection_warning:
         decision["warnings"].insert(0, detection_warning)

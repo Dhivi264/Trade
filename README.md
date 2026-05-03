@@ -20,7 +20,7 @@ backend/                  Python FastAPI service
     image_analysis.py     OpenCV / NumPy chart screenshot inspection
     rule_engine.py        OHLC analysis + final decision engine
   models/
-    schemas.py            Pydantic schemas
+  schemas.py            Pydantic schemas-      
 
 frontend/                 React + Vite + Tailwind dashboard
   src/
