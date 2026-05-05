@@ -210,6 +210,7 @@ async def analyze(
     fallback = (os.getenv("DATA_SOURCE_FALLBACK") or "mt5").lower()
 
     # Try sources in order (Primary -> Fallback -> Guest Fallback)
+    last_errors = []
     for current_source_key in [primary, fallback, "tradingview_guest"]:
         try:
             if current_source_key == "tradingview":
@@ -217,7 +218,7 @@ async def analyze(
                 for tf in ("1H", "15M", "5M"):
                     candles, _ = get_ohlc(sym, "OANDA", tf, bars=bars)
                     if not candles or len(candles) < 30:
-                        raise RuntimeError(f"TradingView: Not enough candles for {tf}.")
+                        raise RuntimeError(f"Insufficient data for {tf}.")
                     series[tf] = candles
                 break  # Success!
             elif current_source_key == "mt5":
@@ -225,8 +226,10 @@ async def analyze(
                 source = "MetaTrader5"
                 for tf in ("1H", "15M", "5M"):
                     candles = get_mt5_ohlc(sym, tf, bars=bars)
-                    if not candles or len(candles) < 30:
-                        raise RuntimeError(f"MT5: Not enough candles for {tf}.")
+                    if candles is None:
+                        raise RuntimeError("Connection failed (is the MT5 terminal running?)")
+                    if len(candles) < 30:
+                        raise RuntimeError(f"Insufficient data for {tf}.")
                     series[tf] = candles
                 break  # Success!
             elif current_source_key == "tradingview_guest":
@@ -234,15 +237,17 @@ async def analyze(
                 for tf in ("1H", "15M", "5M"):
                     candles, _ = get_ohlc(sym, "OANDA", tf, bars=bars, force_guest=True)
                     if not candles or len(candles) < 30:
-                        raise RuntimeError(f"TradingView Guest: Not enough candles for {tf}.")
+                        raise RuntimeError(f"Insufficient data for {tf}.")
                     series[tf] = candles
                 break  # Success!
         except Exception as e:
-            logger.warning("%s fetch failed: %s", current_source_key.capitalize(), e)
+            err_msg = f"{current_source_key.capitalize()} error: {e}"
+            logger.warning(err_msg)
+            last_errors.append(err_msg)
             continue
     else:
         # Loop finished without breaking -> all sources failed
-        raise HTTPException(502, f"OHLC data unavailable from {primary} and {fallback}")
+        raise HTTPException(502, f"All data sources failed: {'; '.join(last_errors)}")
 
     # 3) Image analysis
     image_result = analyze_chart_image(data)

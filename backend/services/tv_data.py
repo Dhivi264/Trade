@@ -27,13 +27,23 @@ except Exception:  # noqa: BLE001 - any import error means no tvdatafeed
 
 
 _TV_INSTANCE: Optional[Any] = None
+_TV_GUEST_INSTANCE: Optional[Any] = None
 
 
-def _get_tv_client() -> Optional[Any]:
-    """Get or create the singleton TvDatafeed instance."""
-    global _TV_INSTANCE
+def _get_tv_client(force_guest: bool = False) -> Optional[Any]:
+    """Get or create a TvDatafeed instance (authenticated or guest)."""
+    global _TV_INSTANCE, _TV_GUEST_INSTANCE
     if not TV_AVAILABLE:
         return None
+
+    if force_guest:
+        if _TV_GUEST_INSTANCE is None:
+            try:
+                _TV_GUEST_INSTANCE = TvDatafeed()
+            except Exception:
+                pass
+        return _TV_GUEST_INSTANCE
+
     if _TV_INSTANCE is None:
         try:
             username = (os.getenv("TV_USERNAME") or "").strip() or None
@@ -108,7 +118,7 @@ def get_ohlc(
             if interval is None:
                 raise ValueError(f"Unsupported timeframe: {timeframe}")
 
-            tv = _get_tv_client()
+            tv = _get_tv_client(force_guest=force_guest)
             if tv is None:
                 raise RuntimeError("TradingView client could not be initialized.")
 
@@ -116,7 +126,8 @@ def get_ohlc(
             # We only raise this error if force_guest is False.
             username = (os.getenv("TV_USERNAME") or "").strip()
             if not force_guest and username and hasattr(tv, 'token') and str(tv.token).startswith('unauthorized'):
-                raise RuntimeError(f"TradingView login failed for user '{username}'. Falling back...")
+                # We log this specifically so the user knows why we are falling back to other sources
+                raise RuntimeError(f"TradingView login failed for user '{username}'.")
 
             df = tv.get_hist(
                 symbol=symbol,

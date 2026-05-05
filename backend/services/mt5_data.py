@@ -49,12 +49,26 @@ def get_mt5_ohlc(
 
     # MT5 credentials from environment
     login_str = os.getenv("MT5_LOGIN", "0").strip()
+    if login_str and not login_str.isdigit():
+        logger.error("MT5_LOGIN must be a numeric account number. Found: '%s'", login_str)
+        return None
+
     login = int(login_str) if login_str.isdigit() else 0
     password = os.getenv("MT5_PASSWORD", "").strip()
     server = os.getenv("MT5_SERVER", "").strip()
 
-    if not mt5.initialize(login=login, password=password, server=server) if login else mt5.initialize():
-        logger.error("mt5.initialize() failed, error code = %s", mt5.last_error())
+    initialized = False
+    if login:
+        initialized = mt5.initialize(login=login, password=password, server=server)
+    else:
+        initialized = mt5.initialize()
+
+    if not initialized:
+        err = mt5.last_error()
+        if err[0] == -10003:
+            logger.error("MT5 initialization failed: MetaTrader 5 terminal not found. Please ensure the MT5 application is running.")
+        else:
+            logger.error("mt5.initialize() failed, error code = %s", err)
         return None
 
     try:
